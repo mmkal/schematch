@@ -20,13 +20,59 @@ type Unset = typeof unset
 type WithReturn<current, next> = current extends Unset ? next : current | next
 type WithAsyncReturn<current, next> = current extends Unset ? Awaited<next> : current | Awaited<next>
 
-export function match<const input, output = Unset>(value: input): MatchExpression<input, output> {
-  return new MatchExpression(value, false, undefined) as MatchExpression<input, output>
+type MatchFactory = {
+  <const input, output = Unset>(value: input): MatchExpression<input, output>
+  with<schema extends StandardSchemaV1, result>(
+    schema: schema,
+    handler: (value: InferOutput<schema>, input: unknown) => result
+  ): ReusableMatcher<WithReturn<Unset, result>>
+  with<schema extends StandardSchemaV1, result>(
+    schema: schema,
+    predicate: (value: InferOutput<schema>, input: unknown) => unknown,
+    handler: (value: InferOutput<schema>, input: unknown) => result
+  ): ReusableMatcher<WithReturn<Unset, result>>
+  with<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
+    ...args: [...schemas, (value: InferOutput<schemas[number]>, input: unknown) => result]
+  ): ReusableMatcher<WithReturn<Unset, result>>
 }
 
-export function matchAsync<const input, output = Unset>(value: input): MatchExpressionAsync<input, output> {
-  return new MatchExpressionAsync(value, Promise.resolve(unmatched)) as MatchExpressionAsync<input, output>
+type MatchAsyncFactory = {
+  <const input, output = Unset>(value: input): MatchExpressionAsync<input, output>
+  with<schema extends StandardSchemaV1, result>(
+    schema: schema,
+    handler: (value: InferOutput<schema>, input: unknown) => result | Promise<result>
+  ): ReusableMatcherAsync<WithAsyncReturn<Unset, result>>
+  with<schema extends StandardSchemaV1, result>(
+    schema: schema,
+    predicate: (value: InferOutput<schema>, input: unknown) => unknown | Promise<unknown>,
+    handler: (value: InferOutput<schema>, input: unknown) => result | Promise<result>
+  ): ReusableMatcherAsync<WithAsyncReturn<Unset, result>>
+  with<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
+    ...args: [...schemas, (value: InferOutput<schemas[number]>, input: unknown) => result | Promise<result>]
+  ): ReusableMatcherAsync<WithAsyncReturn<Unset, result>>
 }
+
+export const match = Object.assign(
+  function match<const input, output = Unset>(value: input): MatchExpression<input, output> {
+    return new MatchExpression(value, false, undefined) as MatchExpression<input, output>
+  },
+  {
+    with(...args: any[]) {
+      return (new ReusableMatcher(unmatched) as any).with(...args)
+    },
+  }
+) as MatchFactory
+
+export const matchAsync = Object.assign(
+  function matchAsync<const input, output = Unset>(value: input): MatchExpressionAsync<input, output> {
+    return new MatchExpressionAsync(value, Promise.resolve(unmatched)) as MatchExpressionAsync<input, output>
+  },
+  {
+    with(...args: any[]) {
+      return (new ReusableMatcherAsync(Promise.resolve(unmatched)) as any).with(...args)
+    },
+  }
+) as MatchAsyncFactory
 
 class MatchExpression<input, output> {
   constructor(
@@ -256,6 +302,196 @@ class MatchExpressionAsync<input, output> {
 
   narrow() {
     return this
+  }
+}
+
+type ReusableClause = {
+  schemas: StandardSchemaV1[]
+  predicate?: (value: unknown, input: unknown) => unknown
+  handler: (value: unknown, input: unknown) => unknown
+}
+
+type ReusableWhenClause = {
+  when: (input: unknown) => unknown
+  handler: (value: unknown, input: unknown) => unknown
+}
+
+class ReusableMatcher<output> {
+  constructor(
+    private readonly terminal: MatchState<output>,
+    private readonly clauses: Array<ReusableClause | ReusableWhenClause> = []
+  ) {}
+
+  with<schema extends StandardSchemaV1, result>(
+    schema: schema,
+    handler: (value: InferOutput<schema>, input: unknown) => result
+  ): ReusableMatcher<WithReturn<output, result>>
+  with<schema extends StandardSchemaV1, result>(
+    schema: schema,
+    predicate: (value: InferOutput<schema>, input: unknown) => unknown,
+    handler: (value: InferOutput<schema>, input: unknown) => result
+  ): ReusableMatcher<WithReturn<output, result>>
+  with<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
+    ...args: [...schemas, (value: InferOutput<schemas[number]>, input: unknown) => result]
+  ): ReusableMatcher<WithReturn<output, result>>
+  with(...args: any[]): ReusableMatcher<any> {
+    const length = args.length
+    const handler = args[length - 1] as (value: unknown, input: unknown) => unknown
+    const hasGuard = length === 3 && typeof args[1] === 'function' && !looksLikeStandardSchema(args[1])
+    const predicate = hasGuard ? (args[1] as (value: unknown, input: unknown) => unknown) : undefined
+    const schemaEnd = hasGuard ? 1 : length - 1
+    const schemas = args.slice(0, schemaEnd) as StandardSchemaV1[]
+
+    return new ReusableMatcher(this.terminal, [...this.clauses, {schemas, predicate, handler}])
+  }
+
+  when<result>(
+    predicate: (value: unknown) => unknown,
+    handler: (value: unknown, input: unknown) => result
+  ): ReusableMatcher<WithReturn<output, result>> {
+    return new ReusableMatcher(this.terminal, [...this.clauses, {when: predicate, handler}]) as any
+  }
+
+  otherwise<result>(handler: (value: unknown) => result): (input: unknown) => WithReturn<output, result> {
+    return input => {
+      const state = this.exec(input)
+      if (state.matched) return state.value as WithReturn<output, result>
+      return handler(input) as WithReturn<output, result>
+    }
+  }
+
+  exhaustive<result = never>(
+    unexpectedValueHandler: (value: unknown) => result = defaultCatcher as (value: unknown) => result
+  ): (input: unknown) => WithReturn<output, result> {
+    return input => {
+      const state = this.exec(input)
+      if (state.matched) return state.value as WithReturn<output, result>
+      return unexpectedValueHandler(input) as WithReturn<output, result>
+    }
+  }
+
+  private exec(input: unknown): MatchState<output> {
+    for (let i = 0; i < this.clauses.length; i += 1) {
+      const clause = this.clauses[i]
+      if ('when' in clause) {
+        const predicateResult = clause.when(input)
+        if (isPromiseLike(predicateResult)) {
+          throw new Error('Predicate returned a Promise. Use matchAsync.with(...) instead.')
+        }
+        if (!predicateResult) continue
+        return {matched: true, value: clause.handler(input, input) as output}
+      }
+
+      for (let j = 0; j < clause.schemas.length; j += 1) {
+        const result = matchSchemaSync(clause.schemas[j], input)
+        if (result === NO_MATCH) continue
+        if (result === ASYNC_REQUIRED) {
+          throw new Error('Schema validation returned a Promise. Use matchAsync.with(...) instead.')
+        }
+
+        if (clause.predicate) {
+          const guardResult = clause.predicate(result, input)
+          if (isPromiseLike(guardResult)) {
+            throw new Error('Guard returned a Promise. Use matchAsync.with(...) instead.')
+          }
+          if (!guardResult) continue
+        }
+
+        return {matched: true, value: clause.handler(result, input) as output}
+      }
+    }
+
+    return this.terminal
+  }
+}
+
+type ReusableClauseAsync = {
+  schemas: StandardSchemaV1[]
+  predicate?: (value: unknown, input: unknown) => unknown | Promise<unknown>
+  handler: (value: unknown, input: unknown) => unknown | Promise<unknown>
+}
+
+type ReusableWhenClauseAsync = {
+  when: (input: unknown) => unknown | Promise<unknown>
+  handler: (value: unknown, input: unknown) => unknown | Promise<unknown>
+}
+
+class ReusableMatcherAsync<output> {
+  constructor(
+    private readonly terminal: Promise<MatchState<output>>,
+    private readonly clauses: Array<ReusableClauseAsync | ReusableWhenClauseAsync> = []
+  ) {}
+
+  with<schema extends StandardSchemaV1, result>(
+    schema: schema,
+    handler: (value: InferOutput<schema>, input: unknown) => result | Promise<result>
+  ): ReusableMatcherAsync<WithAsyncReturn<output, result>>
+  with<schema extends StandardSchemaV1, result>(
+    schema: schema,
+    predicate: (value: InferOutput<schema>, input: unknown) => unknown | Promise<unknown>,
+    handler: (value: InferOutput<schema>, input: unknown) => result | Promise<result>
+  ): ReusableMatcherAsync<WithAsyncReturn<output, result>>
+  with<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
+    ...args: [...schemas, (value: InferOutput<schemas[number]>, input: unknown) => result | Promise<result>]
+  ): ReusableMatcherAsync<WithAsyncReturn<output, result>>
+  with(...args: any[]): ReusableMatcherAsync<any> {
+    const length = args.length
+    const handler = args[length - 1] as (value: unknown, input: unknown) => unknown | Promise<unknown>
+    const hasGuard = length === 3 && typeof args[1] === 'function' && !looksLikeStandardSchema(args[1])
+    const predicate = hasGuard ? (args[1] as (value: unknown, input: unknown) => unknown | Promise<unknown>) : undefined
+    const schemaEnd = hasGuard ? 1 : length - 1
+    const schemas = args.slice(0, schemaEnd) as StandardSchemaV1[]
+
+    return new ReusableMatcherAsync(this.terminal, [...this.clauses, {schemas, predicate, handler}])
+  }
+
+  when<result>(
+    predicate: (value: unknown) => unknown | Promise<unknown>,
+    handler: (value: unknown, input: unknown) => result | Promise<result>
+  ): ReusableMatcherAsync<WithAsyncReturn<output, result>> {
+    return new ReusableMatcherAsync(this.terminal, [...this.clauses, {when: predicate, handler}]) as any
+  }
+
+  otherwise<result>(
+    handler: (value: unknown) => result | Promise<result>
+  ): (input: unknown) => Promise<WithAsyncReturn<output, result>> {
+    return async input => {
+      const state = await this.exec(input)
+      if (state.matched) return state.value as WithAsyncReturn<output, result>
+      return (await handler(input)) as WithAsyncReturn<output, result>
+    }
+  }
+
+  exhaustive<result = never>(
+    unexpectedValueHandler: (value: unknown) => result | Promise<result> =
+      defaultCatcher as (value: unknown) => result | Promise<result>
+  ): (input: unknown) => Promise<WithAsyncReturn<output, result>> {
+    return async input => {
+      const state = await this.exec(input)
+      if (state.matched) return state.value as WithAsyncReturn<output, result>
+      return (await unexpectedValueHandler(input)) as WithAsyncReturn<output, result>
+    }
+  }
+
+  private async exec(input: unknown): Promise<MatchState<output>> {
+    for (let i = 0; i < this.clauses.length; i += 1) {
+      const clause = this.clauses[i]
+      if ('when' in clause) {
+        if (!(await clause.when(input))) continue
+        return {matched: true, value: await clause.handler(input, input) as output}
+      }
+
+      for (let j = 0; j < clause.schemas.length; j += 1) {
+        const result = await matchSchemaAsync(clause.schemas[j], input)
+        if (result === NO_MATCH) continue
+
+        if (clause.predicate && !(await clause.predicate(result, input))) continue
+
+        return {matched: true, value: await clause.handler(result, input) as output}
+      }
+    }
+
+    return await this.terminal
   }
 }
 

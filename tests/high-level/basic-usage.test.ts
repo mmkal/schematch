@@ -41,6 +41,29 @@ describe('high-level/basic-usage', () => {
     expect(fallbackResult).toBe('unexpected')
   })
 
+  it("rahul idea", () => {
+    const myMatcher = match
+      .with(z.string(), s => `hello ${s.substring(1, 3)}`)
+      .with(v.array(v.number()), arr => `got ${arr.length} numbers`)
+      .with(type({msg: 'string'}), obj => obj.msg)
+      .otherwise(() => 'unexpected')
+
+    // todo: type exhaustiveness like this?
+    // type Foo = string | number[] | {msg: string}
+
+    // const myMatcher2 = match
+    //   .with(z.string(), s => `hello ${s.substring(1, 3)}`)
+    //   .with(v.array(v.number()), arr => `got ${arr.length} numbers`)
+    //   .with(type({msg: 'string'}), obj => obj.msg)
+    //   .exhaustive<Foo>()
+
+    expect(myMatcher('hello')).toBe('hello el')
+    expect(myMatcher([1, 2, 3])).toBe('got 3 numbers')
+    expect(myMatcher({msg: 'yo'})).toBe('yo')
+    expect(myMatcher(42)).toBe('unexpected')
+  })
+
+
   it('uses schema output values in handlers', () => {
     const ParseNumber: StandardSchemaV1<unknown, number> = {
       '~standard': {
