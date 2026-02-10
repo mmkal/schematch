@@ -15,17 +15,26 @@ pnpm add schema-match
 ```ts
 import {match} from 'schema-match'
 import {z} from 'zod'
+
+const output = match(input)
+  .with(z.string(), s => `hello ${s.slice(1, 3)}`)
+  .with(z.array(z.number()), arr => `got ${arr.length} numbers`)
+  .with(z.object({msg: z.string()}), obj => obj.msg)
+  .otherwise(() => 'unexpected')
+```
+
+This works with zod, valibot, arktype, and any other standard-schema compatible library. You can even mix and match libraries:
+
+```ts
+import {match} from 'schema-match'
+import {z} from 'zod'
 import * as v from 'valibot'
 import {type} from 'arktype'
 
-const String = z.string()
-const NumberArray = v.array(v.number())
-const Message = type({msg: 'string'})
-
 const output = match(input)
-  .with(String, s => `hello ${s.slice(1, 3)}`)
-  .with(NumberArray, arr => `got ${arr.length} numbers`)
-  .with(Message, obj => obj.msg)
+  .with(z.string(), s => `hello ${s.slice(1, 3)}`)
+  .with(v.array(v.number()), arr => `got ${arr.length} numbers`)
+  .with(type({msg: 'string'}), obj => obj.msg)
   .otherwise(() => 'unexpected')
 ```
 
@@ -69,6 +78,38 @@ const TypedMatcher = match
 - Mix schema libraries in one matcher (via Standard Schema).
 - Keep type inference for handler inputs and return unions.
 - Avoid duplicating validation logic in `if`/`switch` trees.
+
+## Performance
+
+`schema-match` includes compiled matcher caching and library-specific fast paths (literals, object/tuple/union/discriminator prechecks). Reusable matchers avoid rebuilding the fluent chain entirely, giving an additional speedup on hot paths.
+
+Results from a representative run (ops/sec, higher is better) (see the tests being run [here](./tests/bench)):
+
+**Result-style matching** (3 branches, discriminated union):
+
+| Matcher | ops/sec | vs ts-pattern |
+|---|---|---|
+| schema-match zod (reusable) | 1,813,322 | **1.95x** faster |
+| schema-match zod (inline) | 1,639,716 | 1.77x faster |
+| schema-match valibot (reusable) | 1,243,341 | 1.34x faster |
+| schema-match valibot (inline) | 1,124,560 | 1.21x faster |
+| schema-match zod-mini (reusable) | 1,110,088 | 1.20x faster |
+| schema-match zod-mini (inline) | 1,010,530 | 1.09x faster |
+| ts-pattern | 927,829 | — |
+
+**Reducer-style matching** (4 branches, tuple state+event):
+
+| Matcher | ops/sec | vs ts-pattern |
+|---|---|---|
+| schema-match zod (reusable) | 1,102,223 | **2.66x** faster |
+| schema-match zod (inline) | 977,873 | 2.36x faster |
+| ts-pattern | 415,147 | — |
+
+Run locally:
+
+```sh
+pnpm vitest bench --run
+```
 
 ## Supported ecosystems
 
@@ -134,18 +175,6 @@ Use `schema-match` when schema-driven validation is central and you want matchin
 
 - Ad-hoc approach repeats parse checks and manual narrowing.
 - `schema-match` centralizes this in a single typed expression.
-
-## Performance
-
-`schema-match` includes compiled matcher caching and library-specific fast paths (literals, object/tuple/union/discriminator prechecks).
-
-For docs-style realistic schema benchmarks in this repo, current runs show `schema-match` competitive with or faster than `ts-pattern` on several scenarios. Always benchmark your own shapes.
-
-Run locally:
-
-```sh
-pnpm vitest bench tests/bench/match-comparison.bench.ts --run
-```
 
 ## Caveats
 
