@@ -2,7 +2,7 @@
 
 Schema-first pattern matching for TypeScript.
 
-`schematch` lets you use [Standard Schema](https://standardschema.dev) validators as matcher clauses, so validation and branching share one source of truth.
+`schematch` lets you use [Standard Schema](https://standardschema.dev) validators (zod, valibot, arktype et. al.) as matcher clauses, so validation and branching share one source of truth.
 
 ## Install
 
@@ -40,7 +40,7 @@ const output = match(input)
 
 ## Reusable matcher builders
 
-You can prebuild a matcher once and reuse it across many inputs:
+You can prebuild a matcher once into a function, and reuse it across many inputs:
 
 ```typescript
 import {match} from 'schematch'
@@ -74,10 +74,10 @@ const TypedMatcher = match
 
 ## Why use this
 
-- Reuse existing runtime schemas for control flow.
-- Mix schema libraries in one matcher (via Standard Schema).
-- Keep type inference for handler inputs and return unions.
-- Avoid duplicating validation logic in `if`/`switch` trees.
+- 🔁 Reuse existing runtime schemas for control flow.
+- 🧩 Mix schema libraries in one matcher (via Standard Schema).
+- 🔍 Keep type inference for handler inputs and return unions.
+- 🪓 Avoid duplicating validation logic in `if`/`switch` trees.
 
 ## Performance
 
@@ -187,13 +187,13 @@ Arktype has its own [`match` API](https://arktype.io/docs/match) that uses set t
 
 Sync matcher builder:
 
-- `.case(schema, handler)`
-- `.case(schema, predicate, handler)`
-- `.case(schemaA, schemaB, ..., handler)`
-- `.when(predicate, handler)`
-- `.otherwise(handler)`
-- `.exhaustive()`
-- `.run()`
+- `.case(schema, handler)` — try a schema, run handler if it matches
+- `.case(schema, predicate, handler)` — schema + guard
+- `.case(schemaA, schemaB, ..., handler)` — multiple schemas, first match wins
+- `.when(predicate, handler)` — no schema, just a predicate
+- `.otherwise(handler)` — fallback
+- `.exhaustive()` — throw if nothing matched
+- `.run()` — execute without a fallback (returns `undefined` on no match)
 
 `handler` receives `(parsedValue, input)` where `parsedValue` is schema output.
 
