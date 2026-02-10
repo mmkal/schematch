@@ -17,9 +17,9 @@ import {match} from 'schema-match'
 import {z} from 'zod'
 
 const output = match(input)
-  .with(z.string(), s => `hello ${s.slice(1, 3)}`)
-  .with(z.array(z.number()), arr => `got ${arr.length} numbers`)
-  .with(z.object({msg: z.string()}), obj => obj.msg)
+  .case(z.string(), s => `hello ${s.slice(1, 3)}`)
+  .case(z.array(z.number()), arr => `got ${arr.length} numbers`)
+  .case(z.object({msg: z.string()}), obj => obj.msg)
   .otherwise(() => 'unexpected')
 ```
 
@@ -32,9 +32,9 @@ import * as v from 'valibot'
 import {type} from 'arktype'
 
 const output = match(input)
-  .with(z.string(), s => `hello ${s.slice(1, 3)}`)
-  .with(v.array(v.number()), arr => `got ${arr.length} numbers`)
-  .with(type({msg: 'string'}), obj => obj.msg)
+  .case(z.string(), s => `hello ${s.slice(1, 3)}`)
+  .case(v.array(v.number()), arr => `got ${arr.length} numbers`)
+  .case(type({msg: 'string'}), obj => obj.msg)
   .otherwise(() => 'unexpected')
 ```
 
@@ -49,9 +49,9 @@ import * as v from 'valibot'
 import {type} from 'arktype'
 
 const MyMatcher = match
-  .with(z.string(), s => `hello ${s.slice(1, 3)}`)
-  .with(v.array(v.number()), arr => `got ${arr.length} numbers`)
-  .with(type({msg: 'string'}), obj => obj.msg)
+  .case(z.string(), s => `hello ${s.slice(1, 3)}`)
+  .case(v.array(v.number()), arr => `got ${arr.length} numbers`)
+  .case(type({msg: 'string'}), obj => obj.msg)
   .otherwise(() => 'unexpected')
 
 MyMatcher('hello')
@@ -68,7 +68,7 @@ type Result = {type: 'ok'; value: number} | {type: 'err'; message: string}
 
 const TypedMatcher = match
   .input<Result>()
-  .with(z.object({type: z.literal('ok'), value: z.number()}), ({value}) => value)
+  .case(z.object({type: z.literal('ok'), value: z.number()}), ({value}) => value)
   .otherwise(() => -1)
 ```
 
@@ -187,9 +187,9 @@ Arktype has its own [`match` API](https://arktype.io/docs/match) that uses set t
 
 Sync matcher builder:
 
-- `.with(schema, handler)`
-- `.with(schema, predicate, handler)`
-- `.with(schemaA, schemaB, ..., handler)`
+- `.case(schema, handler)`
+- `.case(schema, predicate, handler)`
+- `.case(schemaA, schemaB, ..., handler)`
 - `.when(predicate, handler)`
 - `.otherwise(handler)`
 - `.exhaustive()`
@@ -199,8 +199,8 @@ Sync matcher builder:
 
 `match` also has a static builder entrypoint:
 
-- `match.with(...).with(...).otherwise(...)`
-- `match.with(...).with(...).exhaustive(...)`
+- `match.case(...).case(...).otherwise(...)`
+- `match.case(...).case(...).exhaustive(...)`
 
 These return reusable functions that accept the input later.
 
@@ -208,7 +208,7 @@ These return reusable functions that accept the input later.
 
 Async equivalent for async schemas, guards, and handlers.
 
-`matchAsync.with(...).with(...).otherwise(...)` and `.exhaustive(...)` are also available for reusable async matchers.
+`matchAsync.case(...).case(...).otherwise(...)` and `.exhaustive(...)` are also available for reusable async matchers.
 
 ### `isMatching(schema, value?)` / `isMatchingAsync(schema, value?)`
 

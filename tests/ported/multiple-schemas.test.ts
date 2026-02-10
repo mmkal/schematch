@@ -11,11 +11,11 @@ describe('ported/multiple-schemas', () => {
 
   it('matches if one of the schemas matches', () => {
     const result = match(3)
-      .with(Two, Three, Four, value => {
+      .case(Two, Three, Four, value => {
         expectTypeOf(value).toEqualTypeOf<2 | 3 | 4>()
         return `num:${value}`
       })
-      .with(Number, value => `other:${value}`)
+      .case(Number, value => `other:${value}`)
       .run()
 
     expect(result).toBe('num:3')
@@ -23,8 +23,8 @@ describe('ported/multiple-schemas', () => {
 
   it('falls through to later handlers when no schema matches', () => {
     const result = match(9)
-      .with(Two, Three, Four, value => `num:${value}`)
-      .with(Number, value => `other:${value}`)
+      .case(Two, Three, Four, value => `num:${value}`)
+      .case(Number, value => `other:${value}`)
       .run()
 
     expect(result).toBe('other:9')

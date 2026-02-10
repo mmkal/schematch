@@ -55,54 +55,54 @@ const resultError: Result = {type: 'error', error: new Error('boom')}
 
 const schemaMatchZodResultInline = (result: Result) =>
   schemaMatch(result)
-    .with(ZodError, () => 'error')
-    .with(ZodOkText, ({data}) => data.content)
-    .with(ZodOkImg, ({data}) => data.src)
+    .case(ZodError, () => 'error')
+    .case(ZodOkText, ({data}) => data.content)
+    .case(ZodOkImg, ({data}) => data.src)
     .exhaustive()
 
 const schemaMatchValibotResultInline = (result: Result) =>
   schemaMatch(result)
-    .with(ValibotError, () => 'error')
-    .with(ValibotOkText, ({data}) => data.content)
-    .with(ValibotOkImg, ({data}) => data.src)
+    .case(ValibotError, () => 'error')
+    .case(ValibotOkText, ({data}) => data.content)
+    .case(ValibotOkImg, ({data}) => data.src)
     .exhaustive()
 
 const schemaMatchZodMiniResultInline = (result: Result) =>
   schemaMatch(result)
-    .with(ZodMiniError, () => 'error')
-    .with(ZodMiniOkText, ({data}) => data.content)
-    .with(ZodMiniOkImg, ({data}) => data.src)
+    .case(ZodMiniError, () => 'error')
+    .case(ZodMiniOkText, ({data}) => data.content)
+    .case(ZodMiniOkImg, ({data}) => data.src)
     .exhaustive()
 
 const schemaMatchZodResultReusable = schemaMatch
-  .with(ZodError, () => 'error')
-  .with(ZodOkText, ({data}) => data.content)
-  .with(ZodOkImg, ({data}) => data.src)
+  .case(ZodError, () => 'error')
+  .case(ZodOkText, ({data}) => data.content)
+  .case(ZodOkImg, ({data}) => data.src)
   .exhaustive()
 
 const schemaMatchValibotResultReusable = schemaMatch
-  .with(ValibotError, () => 'error')
-  .with(ValibotOkText, ({data}) => data.content)
-  .with(ValibotOkImg, ({data}) => data.src)
+  .case(ValibotError, () => 'error')
+  .case(ValibotOkText, ({data}) => data.content)
+  .case(ValibotOkImg, ({data}) => data.src)
   .exhaustive()
 
 const schemaMatchZodMiniResultReusable = schemaMatch
-  .with(ZodMiniError, () => 'error')
-  .with(ZodMiniOkText, ({data}) => data.content)
-  .with(ZodMiniOkImg, ({data}) => data.src)
+  .case(ZodMiniError, () => 'error')
+  .case(ZodMiniOkText, ({data}) => data.content)
+  .case(ZodMiniOkImg, ({data}) => data.src)
   .exhaustive()
 
 const schemaMatchArktypeResultInline = (result: Result) =>
   schemaMatch(result)
-    .with(ArkError, () => 'error')
-    .with(ArkOkText, ({data}) => data.content)
-    .with(ArkOkImg, ({data}) => data.src)
+    .case(ArkError, () => 'error')
+    .case(ArkOkText, ({data}) => data.content)
+    .case(ArkOkImg, ({data}) => data.src)
     .exhaustive()
 
 const schemaMatchArktypeResultReusable = schemaMatch
-  .with(ArkError, () => 'error')
-  .with(ArkOkText, ({data}) => data.content)
-  .with(ArkOkImg, ({data}) => data.src)
+  .case(ArkError, () => 'error')
+  .case(ArkOkText, ({data}) => data.content)
+  .case(ArkOkImg, ({data}) => data.src)
   .exhaustive()
 
 const tsPatternResult = (result: Result) =>
@@ -156,32 +156,32 @@ const ArkLoadingCancel = type([ArkLoading, ArkCancel])
 
 const reducerZodInline = (state: State, event: Event): State =>
   schemaMatch<[State, Event]>([state, event])
-    .with(ZodLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
-    .with(ZodLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
-    .with(ZodNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
-    .with(ZodLoadingCancel, () => ({status: 'idle'} as const))
+    .case(ZodLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
+    .case(ZodLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
+    .case(ZodNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
+    .case(ZodLoadingCancel, () => ({status: 'idle'} as const))
     .otherwise(() => state)
 
 const reducerZodReusable = schemaMatch
-  .with(ZodLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
-  .with(ZodLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
-  .with(ZodNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
-  .with(ZodLoadingCancel, () => ({status: 'idle'} as const))
+  .case(ZodLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
+  .case(ZodLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
+  .case(ZodNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
+  .case(ZodLoadingCancel, () => ({status: 'idle'} as const))
   .otherwise(value => (value as [State, Event])[0])
 
 const reducerArktypeInline = (state: State, event: Event): State =>
   schemaMatch<[State, Event]>([state, event])
-    .with(ArkLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
-    .with(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
-    .with(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
-    .with(ArkLoadingCancel, () => ({status: 'idle'} as const))
+    .case(ArkLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
+    .case(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
+    .case(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
+    .case(ArkLoadingCancel, () => ({status: 'idle'} as const))
     .otherwise(() => state)
 
 const reducerArktypeReusable = schemaMatch
-  .with(ArkLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
-  .with(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
-  .with(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
-  .with(ArkLoadingCancel, () => ({status: 'idle'} as const))
+  .case(ArkLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
+  .case(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
+  .case(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
+  .case(ArkLoadingCancel, () => ({status: 'idle'} as const))
   .otherwise(value => (value as [State, Event])[0])
 
 const reducerTsPattern = (state: State, event: Event): State =>

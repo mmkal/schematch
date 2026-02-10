@@ -8,8 +8,8 @@ describe('ported/with-guard', () => {
 
   it('uses the guard to refine matches', () => {
     const result = match(12)
-      .with(Number, value => value > 10, () => 'big')
-      .with(Number, () => 'small')
+      .case(Number, value => value > 10, () => 'big')
+      .case(Number, () => 'small')
       .exhaustive()
 
     expect(result).toBe('big')
@@ -17,8 +17,8 @@ describe('ported/with-guard', () => {
 
   it('falls through when guard returns false', () => {
     const result = match(4)
-      .with(Number, value => value > 10, () => 'big')
-      .with(Number, () => 'small')
+      .case(Number, value => value > 10, () => 'big')
+      .case(Number, () => 'small')
       .exhaustive()
 
     expect(result).toBe('small')

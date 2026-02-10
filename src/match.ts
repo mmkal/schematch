@@ -23,16 +23,16 @@ type WithAsyncReturn<current, next> = current extends Unset ? Awaited<next> : cu
 type MatchFactory = {
   <const input, output = Unset>(value: input): MatchExpression<input, output>
   input<input>(): ReusableMatcher<input, Unset>
-  with<input, schema extends StandardSchemaV1, result>(
+  case<input, schema extends StandardSchemaV1, result>(
     schema: schema,
     handler: (value: InferOutput<schema>, input: input) => result
   ): ReusableMatcher<input, WithReturn<Unset, result>>
-  with<input, schema extends StandardSchemaV1, result>(
+  case<input, schema extends StandardSchemaV1, result>(
     schema: schema,
     predicate: (value: InferOutput<schema>, input: input) => unknown,
     handler: (value: InferOutput<schema>, input: input) => result
   ): ReusableMatcher<input, WithReturn<Unset, result>>
-  with<input, schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
+  case<input, schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
     ...args: [...schemas, (value: InferOutput<schemas[number]>, input: input) => result]
   ): ReusableMatcher<input, WithReturn<Unset, result>>
 }
@@ -40,16 +40,16 @@ type MatchFactory = {
 type MatchAsyncFactory = {
   <const input, output = Unset>(value: input): MatchExpressionAsync<input, output>
   input<input>(): ReusableMatcherAsync<input, Unset>
-  with<input, schema extends StandardSchemaV1, result>(
+  case<input, schema extends StandardSchemaV1, result>(
     schema: schema,
     handler: (value: InferOutput<schema>, input: input) => result | Promise<result>
   ): ReusableMatcherAsync<input, WithAsyncReturn<Unset, result>>
-  with<input, schema extends StandardSchemaV1, result>(
+  case<input, schema extends StandardSchemaV1, result>(
     schema: schema,
     predicate: (value: InferOutput<schema>, input: input) => unknown | Promise<unknown>,
     handler: (value: InferOutput<schema>, input: input) => result | Promise<result>
   ): ReusableMatcherAsync<input, WithAsyncReturn<Unset, result>>
-  with<input, schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
+  case<input, schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
     ...args: [...schemas, (value: InferOutput<schemas[number]>, input: input) => result | Promise<result>]
   ): ReusableMatcherAsync<input, WithAsyncReturn<Unset, result>>
 }
@@ -62,8 +62,8 @@ export const match = Object.assign(
     input() {
       return new ReusableMatcher<unknown, Unset>(unmatched as MatchState<Unset>)
     },
-    with(...args: any[]) {
-      return (new ReusableMatcher<unknown, Unset>(unmatched as MatchState<Unset>) as any).with(...args)
+    'case'(...args: any[]) {
+      return (new ReusableMatcher<unknown, Unset>(unmatched as MatchState<Unset>) as any).case(...args)
     },
   }
 ) as MatchFactory
@@ -78,10 +78,10 @@ export const matchAsync = Object.assign(
         Promise.resolve(unmatched as MatchState<Unset>)
       )
     },
-    with(...args: any[]) {
+    'case'(...args: any[]) {
       return (new ReusableMatcherAsync<unknown, Unset>(
         Promise.resolve(unmatched as MatchState<Unset>)
-      ) as any).with(...args)
+      ) as any).case(...args)
     },
   }
 ) as MatchAsyncFactory
@@ -93,19 +93,19 @@ class MatchExpression<input, output> {
     private value: output | undefined
   ) {}
 
-  with<schema extends StandardSchemaV1, result>(
+  case<schema extends StandardSchemaV1, result>(
     schema: schema,
     handler: (value: InferOutput<schema>, input: input) => result
   ): MatchExpression<input, WithReturn<output, result>>
-  with<schema extends StandardSchemaV1, result>(
+  case<schema extends StandardSchemaV1, result>(
     schema: schema,
     predicate: (value: InferOutput<schema>, input: input) => unknown,
     handler: (value: InferOutput<schema>, input: input) => result
   ): MatchExpression<input, WithReturn<output, result>>
-  with<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
+  case<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
     ...args: [...schemas, (value: InferOutput<schemas[number]>, input: input) => result]
   ): MatchExpression<input, WithReturn<output, result>>
-  with(...args: any[]): MatchExpression<input, any> {
+  case(...args: any[]): MatchExpression<input, any> {
     if (this.matched) return this
 
     const length = args.length
@@ -202,19 +202,19 @@ class MatchExpression<input, output> {
 class MatchExpressionAsync<input, output> {
   constructor(private input: input, private state: Promise<MatchState<output>>) {}
 
-  with<schema extends StandardSchemaV1, result>(
+  case<schema extends StandardSchemaV1, result>(
     schema: schema,
     handler: (value: InferOutput<schema>, input: input) => result | Promise<result>
   ): MatchExpressionAsync<input, WithAsyncReturn<output, result>>
-  with<schema extends StandardSchemaV1, result>(
+  case<schema extends StandardSchemaV1, result>(
     schema: schema,
     predicate: (value: InferOutput<schema>, input: input) => unknown | Promise<unknown>,
     handler: (value: InferOutput<schema>, input: input) => result | Promise<result>
   ): MatchExpressionAsync<input, WithAsyncReturn<output, result>>
-  with<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
+  case<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
     ...args: [...schemas, (value: InferOutput<schemas[number]>, input: input) => result | Promise<result>]
   ): MatchExpressionAsync<input, WithAsyncReturn<output, result>>
-  with(...args: any[]): MatchExpressionAsync<input, any> {
+  case(...args: any[]): MatchExpressionAsync<input, any> {
     const length = args.length
     const handler = args[length - 1] as (value: unknown, input: input) => unknown | Promise<unknown>
 
@@ -334,19 +334,19 @@ class ReusableMatcher<input, output> {
     private readonly clauses: Array<ReusableClause<input> | ReusableWhenClause<input>> = []
   ) {}
 
-  with<schema extends StandardSchemaV1, result>(
+  case<schema extends StandardSchemaV1, result>(
     schema: schema,
     handler: (value: InferOutput<schema>, input: input) => result
   ): ReusableMatcher<input, WithReturn<output, result>>
-  with<schema extends StandardSchemaV1, result>(
+  case<schema extends StandardSchemaV1, result>(
     schema: schema,
     predicate: (value: InferOutput<schema>, input: input) => unknown,
     handler: (value: InferOutput<schema>, input: input) => result
   ): ReusableMatcher<input, WithReturn<output, result>>
-  with<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
+  case<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
     ...args: [...schemas, (value: InferOutput<schemas[number]>, input: input) => result]
   ): ReusableMatcher<input, WithReturn<output, result>>
-  with(...args: any[]): ReusableMatcher<input, any> {
+  case(...args: any[]): ReusableMatcher<input, any> {
     const length = args.length
     const handler = args[length - 1] as (value: unknown, input: input) => unknown
     const hasGuard = length === 3 && typeof args[1] === 'function' && !looksLikeStandardSchema(args[1])
@@ -388,7 +388,7 @@ class ReusableMatcher<input, output> {
       if ('when' in clause) {
         const predicateResult = clause.when(input)
         if (isPromiseLike(predicateResult)) {
-          throw new Error('Predicate returned a Promise. Use matchAsync.with(...) instead.')
+          throw new Error('Predicate returned a Promise. Use matchAsync.case(...) instead.')
         }
         if (!predicateResult) continue
         return {matched: true, value: clause.handler(input, input) as output}
@@ -398,13 +398,13 @@ class ReusableMatcher<input, output> {
         const result = matchSchemaSync(clause.schemas[j], input)
         if (result === NO_MATCH) continue
         if (result === ASYNC_REQUIRED) {
-          throw new Error('Schema validation returned a Promise. Use matchAsync.with(...) instead.')
+          throw new Error('Schema validation returned a Promise. Use matchAsync.case(...) instead.')
         }
 
         if (clause.predicate) {
           const guardResult = clause.predicate(result, input)
           if (isPromiseLike(guardResult)) {
-            throw new Error('Guard returned a Promise. Use matchAsync.with(...) instead.')
+            throw new Error('Guard returned a Promise. Use matchAsync.case(...) instead.')
           }
           if (!guardResult) continue
         }
@@ -434,19 +434,19 @@ class ReusableMatcherAsync<input, output> {
     private readonly clauses: Array<ReusableClauseAsync<input> | ReusableWhenClauseAsync<input>> = []
   ) {}
 
-  with<schema extends StandardSchemaV1, result>(
+  case<schema extends StandardSchemaV1, result>(
     schema: schema,
     handler: (value: InferOutput<schema>, input: input) => result | Promise<result>
   ): ReusableMatcherAsync<input, WithAsyncReturn<output, result>>
-  with<schema extends StandardSchemaV1, result>(
+  case<schema extends StandardSchemaV1, result>(
     schema: schema,
     predicate: (value: InferOutput<schema>, input: input) => unknown | Promise<unknown>,
     handler: (value: InferOutput<schema>, input: input) => result | Promise<result>
   ): ReusableMatcherAsync<input, WithAsyncReturn<output, result>>
-  with<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
+  case<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
     ...args: [...schemas, (value: InferOutput<schemas[number]>, input: input) => result | Promise<result>]
   ): ReusableMatcherAsync<input, WithAsyncReturn<output, result>>
-  with(...args: any[]): ReusableMatcherAsync<input, any> {
+  case(...args: any[]): ReusableMatcherAsync<input, any> {
     const length = args.length
     const handler = args[length - 1] as (value: unknown, input: input) => unknown | Promise<unknown>
     const hasGuard = length === 3 && typeof args[1] === 'function' && !looksLikeStandardSchema(args[1])

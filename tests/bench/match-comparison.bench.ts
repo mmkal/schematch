@@ -55,30 +55,30 @@ const resultError: Result = {type: 'error', error: new Error('boom')}
 
 const schemaMatchZodResult = (result: Result) =>
   schemaMatch(result)
-    .with(ZodError, () => 'error')
-    .with(ZodOkText, ({data}) => data.content)
-    .with(ZodOkImg, ({data}) => data.src)
+    .case(ZodError, () => 'error')
+    .case(ZodOkText, ({data}) => data.content)
+    .case(ZodOkImg, ({data}) => data.src)
     .exhaustive()
 
 const schemaMatchValibotResult = (result: Result) =>
   schemaMatch(result)
-    .with(ValibotError, () => 'error')
-    .with(ValibotOkText, ({data}) => data.content)
-    .with(ValibotOkImg, ({data}) => data.src)
+    .case(ValibotError, () => 'error')
+    .case(ValibotOkText, ({data}) => data.content)
+    .case(ValibotOkImg, ({data}) => data.src)
     .exhaustive()
 
 const schemaMatchZodMiniResult = (result: Result) =>
   schemaMatch(result)
-    .with(ZodMiniError, () => 'error')
-    .with(ZodMiniOkText, ({data}) => data.content)
-    .with(ZodMiniOkImg, ({data}) => data.src)
+    .case(ZodMiniError, () => 'error')
+    .case(ZodMiniOkText, ({data}) => data.content)
+    .case(ZodMiniOkImg, ({data}) => data.src)
     .exhaustive()
 
 const schemaMatchArktypeResult = (result: Result) =>
   schemaMatch(result)
-    .with(ArkError, () => 'error')
-    .with(ArkOkText, ({data}) => data.content)
-    .with(ArkOkImg, ({data}) => data.src)
+    .case(ArkError, () => 'error')
+    .case(ArkOkText, ({data}) => data.content)
+    .case(ArkOkImg, ({data}) => data.src)
     .exhaustive()
 
 const tsPatternResult = (result: Result) =>
@@ -168,34 +168,34 @@ const ValibotLoadingCancel = v.tuple([ValibotLoading, ValibotCancel])
 
 const reducerZod = (state: State, event: Event): State =>
   schemaMatch<[State, Event]>([state, event])
-    .with(ZodLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
-    .with(ZodLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
-    .with(ZodNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
-    .with(ZodLoadingCancel, () => ({status: 'idle'} as const))
+    .case(ZodLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
+    .case(ZodLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
+    .case(ZodNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
+    .case(ZodLoadingCancel, () => ({status: 'idle'} as const))
     .otherwise(() => state)
 
 const reducerValibot = (state: State, event: Event): State =>
   schemaMatch<[State, Event]>([state, event])
-    .with(ValibotLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
-    .with(ValibotLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
-    .with(ValibotNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
-    .with(ValibotLoadingCancel, () => ({status: 'idle'} as const))
+    .case(ValibotLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
+    .case(ValibotLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
+    .case(ValibotNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
+    .case(ValibotLoadingCancel, () => ({status: 'idle'} as const))
     .otherwise(() => state)
 
 const reducerZodMini = (state: State, event: Event): State =>
   schemaMatch<[State, Event]>([state, event])
-    .with(ZodMiniLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
-    .with(ZodMiniLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
-    .with(ZodMiniNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
-    .with(ZodMiniLoadingCancel, () => ({status: 'idle'} as const))
+    .case(ZodMiniLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
+    .case(ZodMiniLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
+    .case(ZodMiniNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
+    .case(ZodMiniLoadingCancel, () => ({status: 'idle'} as const))
     .otherwise(() => state)
 
 const reducerArktype = (state: State, event: Event): State =>
   schemaMatch<[State, Event]>([state, event])
-    .with(ArkLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
-    .with(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
-    .with(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
-    .with(ArkLoadingCancel, () => ({status: 'idle'} as const))
+    .case(ArkLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
+    .case(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
+    .case(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
+    .case(ArkLoadingCancel, () => ({status: 'idle'} as const))
     .otherwise(() => state)
 
 const reducerTsPattern = (state: State, event: Event): State =>

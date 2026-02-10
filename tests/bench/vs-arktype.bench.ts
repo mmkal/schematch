@@ -23,15 +23,15 @@ const arktypeNativePrimitive = arktypeMatch({
 })
 
 const schemaMatchArktypePrimitive = schemaMatch
-  .with(ArkStringOrPrimitive, v => v)
-  .with(ArkBigint, (b: bigint) => `${b}n`)
-  .with(ArkObject, (o: object) => JSON.stringify(o))
+  .case(ArkStringOrPrimitive, v => v)
+  .case(ArkBigint, (b: bigint) => `${b}n`)
+  .case(ArkObject, (o: object) => JSON.stringify(o))
   .exhaustive()
 
 const schemaMatchZodPrimitive = schemaMatch
-  .with(ZodStringOrPrimitive, v => v)
-  .with(ZodBigint, (b: bigint) => `${b}n`)
-  .with(ZodObject, (o: object) => JSON.stringify(o))
+  .case(ZodStringOrPrimitive, v => v)
+  .case(ZodBigint, (b: bigint) => `${b}n`)
+  .case(ZodObject, (o: object) => JSON.stringify(o))
   .exhaustive()
 
 const tsPatternPrimitive = (value: unknown) =>
@@ -63,15 +63,15 @@ const resultError: Result = {type: 'error', error: new Error('boom')}
 
 const schemaMatchArktypeResultInline = (result: Result) =>
   schemaMatch(result)
-    .with(ArkError, () => 'error')
-    .with(ArkOkText, ({data}) => data.content)
-    .with(ArkOkImg, ({data}) => data.src)
+    .case(ArkError, () => 'error')
+    .case(ArkOkText, ({data}) => data.content)
+    .case(ArkOkImg, ({data}) => data.src)
     .exhaustive()
 
 const schemaMatchArktypeResultReusable = schemaMatch
-  .with(ArkError, () => 'error')
-  .with(ArkOkText, ({data}) => data.content)
-  .with(ArkOkImg, ({data}) => data.src)
+  .case(ArkError, () => 'error')
+  .case(ArkOkText, ({data}) => data.content)
+  .case(ArkOkImg, ({data}) => data.src)
   .exhaustive()
 
 // arktype .case() with pre-built type references (avoids re-parsing definitions)
@@ -121,17 +121,17 @@ const ArkLoadingCancel = type([ArkLoading, ArkCancel])
 
 const reducerSchemaMatchInline = (state: State, event: Event): State =>
   schemaMatch<[State, Event]>([state, event])
-    .with(ArkLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
-    .with(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
-    .with(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
-    .with(ArkLoadingCancel, () => ({status: 'idle'} as const))
+    .case(ArkLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
+    .case(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
+    .case(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
+    .case(ArkLoadingCancel, () => ({status: 'idle'} as const))
     .otherwise(() => state)
 
 const reducerSchemaMatchReusable = schemaMatch
-  .with(ArkLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
-  .with(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
-  .with(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
-  .with(ArkLoadingCancel, () => ({status: 'idle'} as const))
+  .case(ArkLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
+  .case(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
+  .case(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
+  .case(ArkLoadingCancel, () => ({status: 'idle'} as const))
   .otherwise(value => (value as [State, Event])[0])
 
 // arktype .case() with pre-built type references

@@ -10,7 +10,7 @@ describe('high-level/async-usage', () => {
 
   it('handles async schema validation with matchAsync', async () => {
     const result = await matchAsync(2)
-      .with(AsyncNumber, async value => value + 1)
+      .case(AsyncNumber, async value => value + 1)
       .otherwise(() => 0)
 
     expect(result).toBe(3)
@@ -27,7 +27,7 @@ describe('high-level/async-usage', () => {
 
   it('throws when sync match sees async schema validation', () => {
     expect(() => {
-      match(2).with(AsyncNumber, () => 'nope')
+      match(2).case(AsyncNumber, () => 'nope')
     }).toThrow('Schema validation returned a Promise')
   })
 
@@ -35,7 +35,7 @@ describe('high-level/async-usage', () => {
     const Number = makeSchema<number>((value): value is number => typeof value === 'number')
 
     expect(() => {
-      match(2).with(Number, async () => true, () => 'nope')
+      match(2).case(Number, async () => true, () => 'nope')
     }).toThrow('Guard returned a Promise')
   })
 })

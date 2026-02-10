@@ -9,33 +9,33 @@ import type {StandardSchemaV1} from '../../src/index.js'
 describe('high-level/basic-usage', () => {
   it('matches standard-schema libraries in order', () => {
     const stringResult = match('hello')
-      .with(z.string(), s => `hello ${s.substring(1, 3)}`)
-      .with(v.array(v.number()), arr => `got ${arr.length} numbers`)
-      .with(type({msg: 'string'}), obj => obj.msg)
+      .case(z.string(), s => `hello ${s.substring(1, 3)}`)
+      .case(v.array(v.number()), arr => `got ${arr.length} numbers`)
+      .case(type({msg: 'string'}), obj => obj.msg)
       .otherwise(() => 'unexpected')
 
     expect(stringResult).toBe('hello el')
 
     const arrayResult = match([1, 2, 3])
-      .with(z.string(), s => `hello ${s.substring(1, 3)}`)
-      .with(v.array(v.number()), arr => `got ${arr.length} numbers`)
-      .with(type({msg: 'string'}), obj => obj.msg)
+      .case(z.string(), s => `hello ${s.substring(1, 3)}`)
+      .case(v.array(v.number()), arr => `got ${arr.length} numbers`)
+      .case(type({msg: 'string'}), obj => obj.msg)
       .otherwise(() => 'unexpected')
 
     expect(arrayResult).toBe('got 3 numbers')
 
     const objectResult = match({msg: 'yo'})
-      .with(z.string(), s => `hello ${s.substring(1, 3)}`)
-      .with(v.array(v.number()), arr => `got ${arr.length} numbers`)
-      .with(type({msg: 'string'}), obj => obj.msg)
+      .case(z.string(), s => `hello ${s.substring(1, 3)}`)
+      .case(v.array(v.number()), arr => `got ${arr.length} numbers`)
+      .case(type({msg: 'string'}), obj => obj.msg)
       .otherwise(() => 'unexpected')
 
     expect(objectResult).toBe('yo')
 
     const fallbackResult = match(42)
-      .with(z.string(), s => `hello ${s.substring(1, 3)}`)
-      .with(v.array(v.number()), arr => `got ${arr.length} numbers`)
-      .with(type({msg: 'string'}), obj => obj.msg)
+      .case(z.string(), s => `hello ${s.substring(1, 3)}`)
+      .case(v.array(v.number()), arr => `got ${arr.length} numbers`)
+      .case(type({msg: 'string'}), obj => obj.msg)
       .otherwise(() => 'unexpected')
 
     expect(fallbackResult).toBe('unexpected')
@@ -43,18 +43,18 @@ describe('high-level/basic-usage', () => {
 
   it("rahul idea", () => {
     const myMatcher = match
-      .with(z.string(), s => `hello ${s.substring(1, 3)}`)
-      .with(v.array(v.number()), arr => `got ${arr.length} numbers`)
-      .with(type({msg: 'string'}), obj => obj.msg)
+      .case(z.string(), s => `hello ${s.substring(1, 3)}`)
+      .case(v.array(v.number()), arr => `got ${arr.length} numbers`)
+      .case(type({msg: 'string'}), obj => obj.msg)
       .otherwise(() => 'unexpected')
 
     // todo: type exhaustiveness like this?
     // type Foo = string | number[] | {msg: string}
 
     // const myMatcher2 = match
-    //   .with(z.string(), s => `hello ${s.substring(1, 3)}`)
-    //   .with(v.array(v.number()), arr => `got ${arr.length} numbers`)
-    //   .with(type({msg: 'string'}), obj => obj.msg)
+    //   .case(z.string(), s => `hello ${s.substring(1, 3)}`)
+    //   .case(v.array(v.number()), arr => `got ${arr.length} numbers`)
+    //   .case(type({msg: 'string'}), obj => obj.msg)
     //   .exhaustive<Foo>()
 
     expect(myMatcher('hello')).toBe('hello el')
@@ -77,7 +77,7 @@ describe('high-level/basic-usage', () => {
     }
 
     const result = match('41')
-      .with(ParseNumber, value => value + 1)
+      .case(ParseNumber, value => value + 1)
       .otherwise(() => 0)
 
     expect(result).toBe(42)

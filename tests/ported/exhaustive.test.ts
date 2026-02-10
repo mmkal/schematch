@@ -9,7 +9,7 @@ describe('ported/exhaustive', () => {
 
     expect(() =>
       match(1)
-        .with(Two, () => 'two')
+        .case(Two, () => 'two')
         .exhaustive()
     ).toThrow(NonExhaustiveError)
   })

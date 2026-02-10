@@ -9,7 +9,7 @@ describe('high-level/type-inference', () => {
     const Number = z.number()
 
     const result = match(1)
-      .with(Number, value => {
+      .case(Number, value => {
         expectTypeOf(value).toEqualTypeOf<number>()
         return value
       })
@@ -23,8 +23,8 @@ describe('high-level/type-inference', () => {
     const Number = z.number()
 
     const result = match<unknown>('hello')
-      .with(String, value => value.length)
-      .with(Number, value => value + 1)
+      .case(String, value => value.length)
+      .case(Number, value => value + 1)
       .otherwise(() => false)
 
     expectTypeOf(result).toEqualTypeOf<number | boolean>()
@@ -45,7 +45,7 @@ describe('high-level/type-inference', () => {
     )
 
     const result = matchAsync(2)
-      .with(AsyncNumber, value => value + 1)
+      .case(AsyncNumber, value => value + 1)
       .otherwise(() => 0)
 
     expectTypeOf(result).toEqualTypeOf<Promise<number>>()
@@ -60,7 +60,7 @@ describe('high-level/type-inference', () => {
 
     const matcher = match
       .input<Input>()
-      .with(Ok, (value, input) => {
+      .case(Ok, (value, input) => {
         expectTypeOf(value).toEqualTypeOf<{type: 'ok'; value: number}>()
         expectTypeOf(input).toEqualTypeOf<Input>()
         return value.value

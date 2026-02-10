@@ -8,7 +8,7 @@ describe('ported/otherwise', () => {
     const Never = makeSchema<never>((_value): _value is never => false)
 
     const result = match(42)
-      .with(Never, () => 0)
+      .case(Never, () => 0)
       .otherwise(value => value)
 
     expect(result).toBe(42)
