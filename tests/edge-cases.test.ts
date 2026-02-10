@@ -421,6 +421,7 @@ describe('edge cases', () => {
           key: 'type',
           value: 'unknown',
           expected: ['ok', 'err'],
+          matched: false,
         })
       }
     })

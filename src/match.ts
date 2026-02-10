@@ -521,14 +521,16 @@ class ReusableMatcher<input, output> {
         const discValue = isPlainObject(input)
           ? (input as Record<string, unknown>)[dispatch.key]
           : undefined
+        const candidates = isPlainObject(input) ? dispatch.table.get(discValue) : null
+        const matched = candidates !== null && candidates !== undefined
         errorOptions.discriminator = {
           key: dispatch.key,
           value: discValue,
           expected: dispatch.expectedValues,
+          matched,
         }
-        // For re-validation, only include schemas from the matching discriminator branch
-        const candidates = isPlainObject(input) ? dispatch.table.get(discValue) : null
-        if (candidates) {
+        if (matched) {
+          // Discriminator matched but validation failed — narrow to just that branch's schemas
           errorOptions.schemas = candidates.flatMap(i => {
             const clause = this.clauses[i]
             return 'schemas' in clause ? clause.schemas : []
@@ -685,13 +687,15 @@ class ReusableMatcherAsync<input, output> {
         const discValue = isPlainObject(input)
           ? (input as Record<string, unknown>)[dispatch.key]
           : undefined
+        const candidates = isPlainObject(input) ? dispatch.table.get(discValue) : null
+        const matched = candidates !== null && candidates !== undefined
         errorOptions.discriminator = {
           key: dispatch.key,
           value: discValue,
           expected: dispatch.expectedValues,
+          matched,
         }
-        const candidates = isPlainObject(input) ? dispatch.table.get(discValue) : null
-        if (candidates) {
+        if (matched) {
           errorOptions.schemas = candidates.flatMap(i => {
             const clause = this.clauses[i]
             return 'schemas' in clause ? clause.schemas : []

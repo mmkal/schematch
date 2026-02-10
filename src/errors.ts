@@ -6,7 +6,7 @@ export type NonExhaustiveErrorOptions = {
   /** Schemas that were attempted during matching */
   schemas?: StandardSchemaV1[]
   /** Discriminator info if a dispatch table was available */
-  discriminator?: {key: string; value: unknown; expected: unknown[]}
+  discriminator?: {key: string; value: unknown; expected: unknown[]; matched: boolean}
 }
 
 export class NonExhaustiveError extends Error {
@@ -48,30 +48,41 @@ function buildErrorMessage(input: unknown, options?: NonExhaustiveErrorOptions):
         return String(v)
       }
     }).join(', ')
-    lines.push(`  Discriminator '${disc.key}' has value ${discValueStr} but expected one of: ${expectedStr}`)
-  }
 
-  const schemas = options?.schemas
-  if (schemas && schemas.length > 0) {
-    // Re-validate input against each schema to collect per-schema issues.
-    // This is the error path so performance doesn't matter.
-    for (let i = 0; i < schemas.length; i += 1) {
-      try {
-        const result = validateSync(schemas[i], input)
-        if ('issues' in result && result.issues) {
-          const pretty = prettifyStandardSchemaError(result)
-          if (pretty) {
-            lines.push(`  Case ${i + 1}:`)
-            for (const line of pretty.split('\n')) {
-              lines.push(`    ${line}`)
-            }
-          }
-        }
-      } catch {
-        // Validation threw (e.g. async schema used in sync context) — skip
-      }
+    if (disc.matched) {
+      // Discriminator value was found in the dispatch table but full validation failed.
+      // Show the matched value and per-case issues for just the matched branch.
+      lines.push(`  Discriminator '${disc.key}' matched ${discValueStr} (options: ${expectedStr}) but failed validation:`)
+      appendPerCaseIssues(lines, options?.schemas, input)
+    } else {
+      // Discriminator value was not in the dispatch table — that's the whole story.
+      lines.push(`  Discriminator '${disc.key}' has value ${discValueStr} but expected one of: ${expectedStr}`)
     }
+  } else {
+    // No discriminator — show per-case issues for all schemas
+    appendPerCaseIssues(lines, options?.schemas, input)
   }
 
   return lines.join('\n')
+}
+
+function appendPerCaseIssues(lines: string[], schemas: StandardSchemaV1[] | undefined, input: unknown): void {
+  if (!schemas || schemas.length === 0) return
+
+  for (let i = 0; i < schemas.length; i += 1) {
+    try {
+      const result = validateSync(schemas[i], input)
+      if ('issues' in result && result.issues) {
+        const pretty = prettifyStandardSchemaError(result)
+        if (pretty) {
+          lines.push(`  Case ${i + 1}:`)
+          for (const line of pretty.split('\n')) {
+            lines.push(`    ${line}`)
+          }
+        }
+      }
+    } catch {
+      // Validation threw (e.g. async schema used in sync context) — skip
+    }
+  }
 }

@@ -190,6 +190,32 @@ Arktype has its own [`match` API](https://arktype.io/docs/match) that uses set t
 | schematch arktype (inline) | 2,520,186 | 1.28x slower |
 | arktype native .case() | 120,772 | 26.77x slower |
 
+**Discriminator dispatch** (15 branches, reusable matcher with dispatch table):
+
+This benchmark uses 15 object schemas with a shared `kind` discriminator key and 2-4 additional typed fields each — a realistic event-sourcing or webhook scenario. It shows how the dispatch table helps as the branch count grows, especially for late-matching inputs.
+
+<!-- bench:fullName="tests/bench/discriminator-dispatch.bench.ts > 15-branch discriminated: mixed inputs (realistic)" -->
+
+| Matcher | ops/sec | vs fastest |
+|---|---|---|
+| schematch arktype (reusable + dispatch) | 2,940,143 | fastest |
+| schematch valibot (reusable + dispatch) | 2,485,785 | 1.18x slower |
+| schematch zod (reusable + dispatch) | 2,420,443 | 1.21x slower |
+| schematch zod (inline) | 808,357 | 3.64x slower |
+| ts-pattern | 358,838 | 8.19x slower |
+
+The dispatch advantage grows with branch position. For the last branch (worst case for sequential scan):
+
+<!-- bench:fullName="tests/bench/discriminator-dispatch.bench.ts > 15-branch discriminated: last branch (worst case)" -->
+
+| Matcher | ops/sec | vs fastest |
+|---|---|---|
+| schematch arktype (reusable + dispatch) | 6,959,113 | fastest |
+| schematch zod (reusable + dispatch) | 5,970,836 | 1.17x slower |
+| schematch valibot (reusable + dispatch) | 5,910,174 | 1.18x slower |
+| schematch zod (inline) | 1,460,279 | 4.77x slower |
+| ts-pattern | 632,622 | 11.00x slower |
+
 ## How it works
 
 Calling `match(value).case(schema, handler)` or building a reusable matcher looks simple, but under the hood schematch compiles each schema into a specialised matcher the first time it's seen, caches it, and then applies a layered series of fast paths before ever falling back to the schema library's own `validate` call. The layers are described below, roughly in the order they're tried.
