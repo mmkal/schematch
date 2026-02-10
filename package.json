@@ -1,15 +1,36 @@
 {
   "name": "schematch",
   "version": "0.0.0",
-  "description": "",
+  "description": "Schema-first pattern matching for TypeScript — use zod, valibot, arktype, or any Standard Schema validator as match/case clauses",
   "main": "index.js",
   "scripts": {
     "test": "vitest run --typecheck",
     "test:watch": "vitest --typecheck"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "pattern-matching",
+    "match",
+    "schema",
+    "standard-schema",
+    "zod",
+    "valibot",
+    "arktype",
+    "validation",
+    "type-guard",
+    "typescript",
+    "type-inference",
+    "discriminated-union",
+    "exhaustive"
+  ],
+  "author": "mmkal",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mmkal/schematch.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mmkal/schematch/issues"
+  },
   "packageManager": "pnpm@10.28.1",
   "devDependencies": {
     "@types/node": "25.2.2",
