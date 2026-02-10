@@ -1,6 +1,6 @@
 import type {StandardSchemaV1} from '../../src/index.js'
 
-const fastCheckSymbol = Symbol.for('schema-match.fast-check')
+const fastCheckSymbol = Symbol.for('schematch.fast-check')
 
 export const success = <Output>(value: Output): StandardSchemaV1.SuccessResult<Output> => ({
   value,

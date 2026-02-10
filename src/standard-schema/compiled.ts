@@ -16,8 +16,8 @@ type CompiledMatcher = {
   async: (value: unknown) => AsyncMatchResult
 }
 
-const compiledMatcherSymbol = Symbol.for('schema-match.compiled-matcher')
-const fastCheckSymbol = Symbol.for('schema-match.fast-check')
+const compiledMatcherSymbol = Symbol.for('schematch.compiled-matcher')
+const fastCheckSymbol = Symbol.for('schematch.fast-check')
 const compiledMatcherCache = new WeakMap<object, CompiledMatcher>()
 
 export const matchSchemaSync = (schema: StandardSchemaV1, value: unknown): SyncMatchResult => {

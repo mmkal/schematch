@@ -5,7 +5,7 @@ import {z as zm} from 'zod/mini'
 import {z} from 'zod'
 import {type} from 'arktype'
 
-import {match as schemaMatch} from '../../src/index.js'
+import {match as schematch} from '../../src/index.js'
 
 type Data =
   | {type: 'text'; content: string}
@@ -53,53 +53,53 @@ const resultText: Result = {type: 'ok', data: {type: 'text', content: 'hello'}}
 const resultImg: Result = {type: 'ok', data: {type: 'img', src: '/hero.png'}}
 const resultError: Result = {type: 'error', error: new Error('boom')}
 
-const schemaMatchZodResultInline = (result: Result) =>
-  schemaMatch(result)
+const schematchZodResultInline = (result: Result) =>
+  schematch(result)
     .case(ZodError, () => 'error')
     .case(ZodOkText, ({data}) => data.content)
     .case(ZodOkImg, ({data}) => data.src)
     .exhaustive()
 
-const schemaMatchValibotResultInline = (result: Result) =>
-  schemaMatch(result)
+const schematchValibotResultInline = (result: Result) =>
+  schematch(result)
     .case(ValibotError, () => 'error')
     .case(ValibotOkText, ({data}) => data.content)
     .case(ValibotOkImg, ({data}) => data.src)
     .exhaustive()
 
-const schemaMatchZodMiniResultInline = (result: Result) =>
-  schemaMatch(result)
+const schematchZodMiniResultInline = (result: Result) =>
+  schematch(result)
     .case(ZodMiniError, () => 'error')
     .case(ZodMiniOkText, ({data}) => data.content)
     .case(ZodMiniOkImg, ({data}) => data.src)
     .exhaustive()
 
-const schemaMatchZodResultReusable = schemaMatch
+const schematchZodResultReusable = schematch
   .case(ZodError, () => 'error')
   .case(ZodOkText, ({data}) => data.content)
   .case(ZodOkImg, ({data}) => data.src)
   .exhaustive()
 
-const schemaMatchValibotResultReusable = schemaMatch
+const schematchValibotResultReusable = schematch
   .case(ValibotError, () => 'error')
   .case(ValibotOkText, ({data}) => data.content)
   .case(ValibotOkImg, ({data}) => data.src)
   .exhaustive()
 
-const schemaMatchZodMiniResultReusable = schemaMatch
+const schematchZodMiniResultReusable = schematch
   .case(ZodMiniError, () => 'error')
   .case(ZodMiniOkText, ({data}) => data.content)
   .case(ZodMiniOkImg, ({data}) => data.src)
   .exhaustive()
 
-const schemaMatchArktypeResultInline = (result: Result) =>
-  schemaMatch(result)
+const schematchArktypeResultInline = (result: Result) =>
+  schematch(result)
     .case(ArkError, () => 'error')
     .case(ArkOkText, ({data}) => data.content)
     .case(ArkOkImg, ({data}) => data.src)
     .exhaustive()
 
-const schemaMatchArktypeResultReusable = schemaMatch
+const schematchArktypeResultReusable = schematch
   .case(ArkError, () => 'error')
   .case(ArkOkText, ({data}) => data.content)
   .case(ArkOkImg, ({data}) => data.src)
@@ -155,14 +155,14 @@ const ArkNotLoadingFetch = type([ArkIdle.or(ArkSuccessState).or(ArkErrorState), 
 const ArkLoadingCancel = type([ArkLoading, ArkCancel])
 
 const reducerZodInline = (state: State, event: Event): State =>
-  schemaMatch<[State, Event]>([state, event])
+  schematch<[State, Event]>([state, event])
     .case(ZodLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
     .case(ZodLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
     .case(ZodNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
     .case(ZodLoadingCancel, () => ({status: 'idle'} as const))
     .otherwise(() => state)
 
-const reducerZodReusable = schemaMatch
+const reducerZodReusable = schematch
   .case(ZodLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
   .case(ZodLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
   .case(ZodNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
@@ -170,14 +170,14 @@ const reducerZodReusable = schemaMatch
   .otherwise(value => (value as [State, Event])[0])
 
 const reducerArktypeInline = (state: State, event: Event): State =>
-  schemaMatch<[State, Event]>([state, event])
+  schematch<[State, Event]>([state, event])
     .case(ArkLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
     .case(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
     .case(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
     .case(ArkLoadingCancel, () => ({status: 'idle'} as const))
     .otherwise(() => state)
 
-const reducerArktypeReusable = schemaMatch
+const reducerArktypeReusable = schematch
   .case(ArkLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
   .case(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
   .case(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
@@ -202,52 +202,52 @@ const idleState: State = {status: 'idle'}
 const fetchEvent: Event = {type: 'fetch'}
 
 describe('result matcher (inline vs reusable)', () => {
-  bench('schema-match zod (inline)', () => {
-    schemaMatchZodResultInline(resultText)
-    schemaMatchZodResultInline(resultImg)
-    schemaMatchZodResultInline(resultError)
+  bench('schematch zod (inline)', () => {
+    schematchZodResultInline(resultText)
+    schematchZodResultInline(resultImg)
+    schematchZodResultInline(resultError)
   })
 
-  bench('schema-match zod (reusable)', () => {
-    schemaMatchZodResultReusable(resultText)
-    schemaMatchZodResultReusable(resultImg)
-    schemaMatchZodResultReusable(resultError)
+  bench('schematch zod (reusable)', () => {
+    schematchZodResultReusable(resultText)
+    schematchZodResultReusable(resultImg)
+    schematchZodResultReusable(resultError)
   })
 
-  bench('schema-match valibot (inline)', () => {
-    schemaMatchValibotResultInline(resultText)
-    schemaMatchValibotResultInline(resultImg)
-    schemaMatchValibotResultInline(resultError)
+  bench('schematch valibot (inline)', () => {
+    schematchValibotResultInline(resultText)
+    schematchValibotResultInline(resultImg)
+    schematchValibotResultInline(resultError)
   })
 
-  bench('schema-match valibot (reusable)', () => {
-    schemaMatchValibotResultReusable(resultText)
-    schemaMatchValibotResultReusable(resultImg)
-    schemaMatchValibotResultReusable(resultError)
+  bench('schematch valibot (reusable)', () => {
+    schematchValibotResultReusable(resultText)
+    schematchValibotResultReusable(resultImg)
+    schematchValibotResultReusable(resultError)
   })
 
-  bench('schema-match zod-mini (inline)', () => {
-    schemaMatchZodMiniResultInline(resultText)
-    schemaMatchZodMiniResultInline(resultImg)
-    schemaMatchZodMiniResultInline(resultError)
+  bench('schematch zod-mini (inline)', () => {
+    schematchZodMiniResultInline(resultText)
+    schematchZodMiniResultInline(resultImg)
+    schematchZodMiniResultInline(resultError)
   })
 
-  bench('schema-match zod-mini (reusable)', () => {
-    schemaMatchZodMiniResultReusable(resultText)
-    schemaMatchZodMiniResultReusable(resultImg)
-    schemaMatchZodMiniResultReusable(resultError)
+  bench('schematch zod-mini (reusable)', () => {
+    schematchZodMiniResultReusable(resultText)
+    schematchZodMiniResultReusable(resultImg)
+    schematchZodMiniResultReusable(resultError)
   })
 
-  bench('schema-match arktype (inline)', () => {
-    schemaMatchArktypeResultInline(resultText)
-    schemaMatchArktypeResultInline(resultImg)
-    schemaMatchArktypeResultInline(resultError)
+  bench('schematch arktype (inline)', () => {
+    schematchArktypeResultInline(resultText)
+    schematchArktypeResultInline(resultImg)
+    schematchArktypeResultInline(resultError)
   })
 
-  bench('schema-match arktype (reusable)', () => {
-    schemaMatchArktypeResultReusable(resultText)
-    schemaMatchArktypeResultReusable(resultImg)
-    schemaMatchArktypeResultReusable(resultError)
+  bench('schematch arktype (reusable)', () => {
+    schematchArktypeResultReusable(resultText)
+    schematchArktypeResultReusable(resultImg)
+    schematchArktypeResultReusable(resultError)
   })
 
   bench('ts-pattern', () => {
@@ -258,25 +258,25 @@ describe('result matcher (inline vs reusable)', () => {
 })
 
 describe('reducer matcher (inline vs reusable)', () => {
-  bench('schema-match zod (inline)', () => {
+  bench('schematch zod (inline)', () => {
     reducerZodInline(loadingState, successEvent)
     reducerZodInline(loadingState, errorEvent)
     reducerZodInline(idleState, fetchEvent)
   })
 
-  bench('schema-match zod (reusable)', () => {
+  bench('schematch zod (reusable)', () => {
     reducerZodReusable([loadingState, successEvent])
     reducerZodReusable([loadingState, errorEvent])
     reducerZodReusable([idleState, fetchEvent])
   })
 
-  bench('schema-match arktype (inline)', () => {
+  bench('schematch arktype (inline)', () => {
     reducerArktypeInline(loadingState, successEvent)
     reducerArktypeInline(loadingState, errorEvent)
     reducerArktypeInline(idleState, fetchEvent)
   })
 
-  bench('schema-match arktype (reusable)', () => {
+  bench('schematch arktype (reusable)', () => {
     reducerArktypeReusable([loadingState, successEvent])
     reducerArktypeReusable([loadingState, errorEvent])
     reducerArktypeReusable([idleState, fetchEvent])

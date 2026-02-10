@@ -1,19 +1,19 @@
-# schema-match
+# schematch
 
 Schema-first pattern matching for TypeScript.
 
-`schema-match` lets you use [Standard Schema](https://standardschema.dev) validators as matcher clauses, so validation and branching share one source of truth.
+`schematch` lets you use [Standard Schema](https://standardschema.dev) validators as matcher clauses, so validation and branching share one source of truth.
 
 ## Install
 
 ```sh
-pnpm add schema-match
+pnpm add schematch
 ```
 
 ## Quick start
 
 ```typescript
-import {match} from 'schema-match'
+import {match} from 'schematch'
 import {z} from 'zod'
 
 const output = match(input)
@@ -26,7 +26,7 @@ const output = match(input)
 This works with zod, valibot, arktype, and any other standard-schema compatible library. You can even mix and match libraries:
 
 ```typescript
-import {match} from 'schema-match'
+import {match} from 'schematch'
 import {z} from 'zod'
 import * as v from 'valibot'
 import {type} from 'arktype'
@@ -43,7 +43,7 @@ const output = match(input)
 You can prebuild a matcher once and reuse it across many inputs:
 
 ```typescript
-import {match} from 'schema-match'
+import {match} from 'schematch'
 import {z} from 'zod'
 import * as v from 'valibot'
 import {type} from 'arktype'
@@ -81,7 +81,7 @@ const TypedMatcher = match
 
 ## Performance
 
-`schema-match` includes compiled matcher caching and library-specific fast paths (literals, object/tuple/union/discriminator prechecks). Reusable matchers avoid rebuilding the fluent chain entirely, giving an additional speedup on hot paths.
+`schematch` includes compiled matcher caching and library-specific fast paths (literals, object/tuple/union/discriminator prechecks). Reusable matchers avoid rebuilding the fluent chain entirely, giving an additional speedup on hot paths.
 
 Results from a representative run (ops/sec, higher is better):
 
@@ -91,10 +91,10 @@ Results from a representative run (ops/sec, higher is better):
 
 | Matcher | ops/sec | vs fastest |
 |---|---|---|
-| schema-match arktype | 2,889,271 | fastest |
-| schema-match zod-mini | 2,459,148 | 1.17x slower |
-| schema-match zod | 2,403,237 | 1.20x slower |
-| schema-match valibot | 2,395,803 | 1.21x slower |
+| schematch arktype | 2,889,271 | fastest |
+| schematch zod-mini | 2,459,148 | 1.17x slower |
+| schematch zod | 2,403,237 | 1.20x slower |
+| schematch valibot | 2,395,803 | 1.21x slower |
 | ts-pattern | 907,255 | 3.18x slower |
 
 **Reducer-style matching** (4 branches, tuple state+event):
@@ -103,10 +103,10 @@ Results from a representative run (ops/sec, higher is better):
 
 | Matcher | ops/sec | vs fastest |
 |---|---|---|
-| schema-match arktype | 2,470,445 | fastest |
-| schema-match zod | 1,896,102 | 1.30x slower |
-| schema-match zod-mini | 1,874,122 | 1.32x slower |
-| schema-match valibot | 1,857,205 | 1.33x slower |
+| schematch arktype | 2,470,445 | fastest |
+| schematch zod | 1,896,102 | 1.30x slower |
+| schematch zod-mini | 1,874,122 | 1.32x slower |
+| schematch valibot | 1,857,205 | 1.33x slower |
 | ts-pattern | 406,453 | 6.08x slower |
 
 **Inline vs reusable** (result-style):
@@ -115,14 +115,14 @@ Results from a representative run (ops/sec, higher is better):
 
 | Matcher | ops/sec | vs fastest |
 |---|---|---|
-| schema-match arktype (reusable) | 3,595,131 | fastest |
-| schema-match zod (reusable) | 3,406,267 | 1.06x slower |
-| schema-match zod-mini (reusable) | 3,184,019 | 1.13x slower |
-| schema-match valibot (reusable) | 2,970,570 | 1.21x slower |
-| schema-match arktype (inline) | 2,949,246 | 1.22x slower |
-| schema-match zod (inline) | 2,552,020 | 1.41x slower |
-| schema-match zod-mini (inline) | 2,513,358 | 1.43x slower |
-| schema-match valibot (inline) | 2,490,268 | 1.44x slower |
+| schematch arktype (reusable) | 3,595,131 | fastest |
+| schematch zod (reusable) | 3,406,267 | 1.06x slower |
+| schematch zod-mini (reusable) | 3,184,019 | 1.13x slower |
+| schematch valibot (reusable) | 2,970,570 | 1.21x slower |
+| schematch arktype (inline) | 2,949,246 | 1.22x slower |
+| schematch zod (inline) | 2,552,020 | 1.41x slower |
+| schematch zod-mini (inline) | 2,513,358 | 1.43x slower |
+| schematch valibot (inline) | 2,490,268 | 1.44x slower |
 | ts-pattern | 924,386 | 3.89x slower |
 
 **Inline vs reusable** (reducer-style):
@@ -131,15 +131,15 @@ Results from a representative run (ops/sec, higher is better):
 
 | Matcher | ops/sec | vs fastest |
 |---|---|---|
-| schema-match arktype (reusable) | 3,152,214 | fastest |
-| schema-match arktype (inline) | 2,557,790 | 1.23x slower |
-| schema-match zod (reusable) | 2,280,499 | 1.38x slower |
-| schema-match zod (inline) | 1,975,361 | 1.60x slower |
+| schematch arktype (reusable) | 3,152,214 | fastest |
+| schematch arktype (inline) | 2,557,790 | 1.23x slower |
+| schematch zod (reusable) | 2,280,499 | 1.38x slower |
+| schematch zod (inline) | 1,975,361 | 1.60x slower |
 | ts-pattern | 406,866 | 7.75x slower |
 
 **vs arktype native `match`:**
 
-Arktype has its own [`match` API](https://arktype.io/docs/match) that uses set theory to skip unmatched branches. For primitive type discrimination, it's the fastest option. For nested object schemas, `schema-match` is faster because it uses arktype's `.allows()` for zero-allocation boolean checks.
+Arktype has its own [`match` API](https://arktype.io/docs/match) that uses set theory to skip unmatched branches. For primitive type discrimination, it's the fastest option. For nested object schemas, `schematch` is faster because it uses arktype's `.allows()` for zero-allocation boolean checks.
 
 *Primitive type discrimination* (`string | number | boolean | null`, `bigint`, `object`):
 
@@ -148,8 +148,8 @@ Arktype has its own [`match` API](https://arktype.io/docs/match) that uses set t
 | Matcher | ops/sec | vs fastest |
 |---|---|---|
 | arktype native match | 10,390,218 | fastest |
-| schema-match arktype (reusable) | 3,420,320 | 3.04x slower |
-| schema-match zod (reusable) | 2,861,642 | 3.63x slower |
+| schematch arktype (reusable) | 3,420,320 | 3.04x slower |
+| schematch zod (reusable) | 2,861,642 | 3.63x slower |
 | ts-pattern | 668,182 | 15.55x slower |
 
 *Nested object matching* (3 branches, discriminated union):
@@ -158,8 +158,8 @@ Arktype has its own [`match` API](https://arktype.io/docs/match) that uses set t
 
 | Matcher | ops/sec | vs fastest |
 |---|---|---|
-| schema-match arktype (reusable) | 3,617,913 | fastest |
-| schema-match arktype (inline) | 2,994,844 | 1.21x slower |
+| schematch arktype (reusable) | 3,617,913 | fastest |
+| schematch arktype (inline) | 2,994,844 | 1.21x slower |
 | arktype native .at("type") | 236,615 | 15.29x slower |
 | arktype native .case() | 209,913 | 17.24x slower |
 
@@ -169,8 +169,8 @@ Arktype has its own [`match` API](https://arktype.io/docs/match) that uses set t
 
 | Matcher | ops/sec | vs fastest |
 |---|---|---|
-| schema-match arktype (reusable) | 3,233,544 | fastest |
-| schema-match arktype (inline) | 2,520,186 | 1.28x slower |
+| schematch arktype (reusable) | 3,233,544 | fastest |
+| schematch arktype (inline) | 2,520,186 | 1.28x slower |
 | arktype native .case() | 120,772 | 26.77x slower |
 
 ## Supported ecosystems
@@ -229,14 +229,14 @@ Thrown by `.exhaustive()` when no branch matches.
 ### vs `ts-pattern`
 
 - `ts-pattern` matches JS patterns directly and is excellent for structural matching.
-- `schema-match` matches with runtime schemas you already own.
+- `schematch` matches with runtime schemas you already own.
 
-Use `schema-match` when schema-driven validation is central and you want matching to follow it.
+Use `schematch` when schema-driven validation is central and you want matching to follow it.
 
 ### vs ad-hoc validation + branching
 
 - Ad-hoc approach repeats parse checks and manual narrowing.
-- `schema-match` centralizes this in a single typed expression.
+- `schematch` centralizes this in a single typed expression.
 
 ## Caveats
 

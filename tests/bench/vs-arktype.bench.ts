@@ -3,7 +3,7 @@ import {type, match as arktypeMatch} from 'arktype'
 import {z} from 'zod'
 import {P, match as tsPatternMatch} from 'ts-pattern'
 
-import {match as schemaMatch} from '../../src/index.js'
+import {match as schematch} from '../../src/index.js'
 
 // --- Primitive type discrimination (arktype's strength) ---
 
@@ -22,13 +22,13 @@ const arktypeNativePrimitive = arktypeMatch({
   default: 'assert',
 })
 
-const schemaMatchArktypePrimitive = schemaMatch
+const schematchArktypePrimitive = schematch
   .case(ArkStringOrPrimitive, v => v)
   .case(ArkBigint, (b: bigint) => `${b}n`)
   .case(ArkObject, (o: object) => JSON.stringify(o))
   .exhaustive()
 
-const schemaMatchZodPrimitive = schemaMatch
+const schematchZodPrimitive = schematch
   .case(ZodStringOrPrimitive, v => v)
   .case(ZodBigint, (b: bigint) => `${b}n`)
   .case(ZodObject, (o: object) => JSON.stringify(o))
@@ -43,7 +43,7 @@ const tsPatternPrimitive = (value: unknown) =>
       throw new Error('unexpected')
     })
 
-// --- Nested object matching (schema-match's strength) ---
+// --- Nested object matching (schematch's strength) ---
 
 type Data =
   | {type: 'text'; content: string}
@@ -61,14 +61,14 @@ const resultText: Result = {type: 'ok', data: {type: 'text', content: 'hello'}}
 const resultImg: Result = {type: 'ok', data: {type: 'img', src: '/hero.png'}}
 const resultError: Result = {type: 'error', error: new Error('boom')}
 
-const schemaMatchArktypeResultInline = (result: Result) =>
-  schemaMatch(result)
+const schematchArktypeResultInline = (result: Result) =>
+  schematch(result)
     .case(ArkError, () => 'error')
     .case(ArkOkText, ({data}) => data.content)
     .case(ArkOkImg, ({data}) => data.src)
     .exhaustive()
 
-const schemaMatchArktypeResultReusable = schemaMatch
+const schematchArktypeResultReusable = schematch
   .case(ArkError, () => 'error')
   .case(ArkOkText, ({data}) => data.content)
   .case(ArkOkImg, ({data}) => data.src)
@@ -119,15 +119,15 @@ const ArkLoadingError = type([ArkLoading, ArkErrorEvent])
 const ArkNotLoadingFetch = type([ArkIdle.or(ArkSuccessState).or(ArkErrorState), ArkFetch])
 const ArkLoadingCancel = type([ArkLoading, ArkCancel])
 
-const reducerSchemaMatchInline = (state: State, event: Event): State =>
-  schemaMatch<[State, Event]>([state, event])
+const reducerSchematchInline = (state: State, event: Event): State =>
+  schematch<[State, Event]>([state, event])
     .case(ArkLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
     .case(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
     .case(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
     .case(ArkLoadingCancel, () => ({status: 'idle'} as const))
     .otherwise(() => state)
 
-const reducerSchemaMatchReusable = schemaMatch
+const reducerSchematchReusable = schematch
   .case(ArkLoadingSuccess, ([, e]) => ({status: 'success', data: e.data} as const))
   .case(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
   .case(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
@@ -155,16 +155,16 @@ describe('vs arktype native: primitive type discrimination', () => {
     arktypeNativePrimitive({a: 1})
   })
 
-  bench('schema-match arktype (reusable)', () => {
-    schemaMatchArktypePrimitive('foo')
-    schemaMatchArktypePrimitive(5n)
-    schemaMatchArktypePrimitive({a: 1})
+  bench('schematch arktype (reusable)', () => {
+    schematchArktypePrimitive('foo')
+    schematchArktypePrimitive(5n)
+    schematchArktypePrimitive({a: 1})
   })
 
-  bench('schema-match zod (reusable)', () => {
-    schemaMatchZodPrimitive('foo')
-    schemaMatchZodPrimitive(5n)
-    schemaMatchZodPrimitive({a: 1})
+  bench('schematch zod (reusable)', () => {
+    schematchZodPrimitive('foo')
+    schematchZodPrimitive(5n)
+    schematchZodPrimitive({a: 1})
   })
 
   bench('ts-pattern', () => {
@@ -175,16 +175,16 @@ describe('vs arktype native: primitive type discrimination', () => {
 })
 
 describe('vs arktype native: result matching', () => {
-  bench('schema-match arktype (inline)', () => {
-    schemaMatchArktypeResultInline(resultText)
-    schemaMatchArktypeResultInline(resultImg)
-    schemaMatchArktypeResultInline(resultError)
+  bench('schematch arktype (inline)', () => {
+    schematchArktypeResultInline(resultText)
+    schematchArktypeResultInline(resultImg)
+    schematchArktypeResultInline(resultError)
   })
 
-  bench('schema-match arktype (reusable)', () => {
-    schemaMatchArktypeResultReusable(resultText)
-    schemaMatchArktypeResultReusable(resultImg)
-    schemaMatchArktypeResultReusable(resultError)
+  bench('schematch arktype (reusable)', () => {
+    schematchArktypeResultReusable(resultText)
+    schematchArktypeResultReusable(resultImg)
+    schematchArktypeResultReusable(resultError)
   })
 
   bench('arktype native .case()', () => {
@@ -201,16 +201,16 @@ describe('vs arktype native: result matching', () => {
 })
 
 describe('vs arktype native: reducer matching', () => {
-  bench('schema-match arktype (inline)', () => {
-    reducerSchemaMatchInline(loadingState, successEvent)
-    reducerSchemaMatchInline(loadingState, errorEvent)
-    reducerSchemaMatchInline(idleState, fetchEvent)
+  bench('schematch arktype (inline)', () => {
+    reducerSchematchInline(loadingState, successEvent)
+    reducerSchematchInline(loadingState, errorEvent)
+    reducerSchematchInline(idleState, fetchEvent)
   })
 
-  bench('schema-match arktype (reusable)', () => {
-    reducerSchemaMatchReusable([loadingState, successEvent])
-    reducerSchemaMatchReusable([loadingState, errorEvent])
-    reducerSchemaMatchReusable([idleState, fetchEvent])
+  bench('schematch arktype (reusable)', () => {
+    reducerSchematchReusable([loadingState, successEvent])
+    reducerSchematchReusable([loadingState, errorEvent])
+    reducerSchematchReusable([idleState, fetchEvent])
   })
 
   bench('arktype native .case()', () => {
