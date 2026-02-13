@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import * as v from 'valibot'
 
-import {match, NonExhaustiveError} from '../../src/index.js'
+import {match, MatchError} from '../../src/index.js'
 import type {StandardSchemaV1} from '../../src/index.js'
 import {makeAsyncSchema} from '../helpers/standard-schema.js'
 
@@ -165,29 +165,29 @@ describe('matcher as StandardSchema', () => {
     })
   })
 
-  describe('NonExhaustiveError as FailureResult', () => {
-    it('NonExhaustiveError has .issues conforming to StandardSchemaV1.FailureResult', () => {
+  describe('MatchError as FailureResult', () => {
+    it('MatchError has .issues conforming to StandardSchemaV1.FailureResult', () => {
       const m = match
         .case(z.string(), s => s.length)
         .default('reject')
 
       const result = m(42)
-      expect(result).toBeInstanceOf(NonExhaustiveError)
+      expect(result).toBeInstanceOf(MatchError)
 
-      const err = result as NonExhaustiveError
+      const err = result as MatchError
       expect(err.issues).toBeDefined()
       expect(Array.isArray(err.issues)).toBe(true)
       expect(err.issues.length).toBeGreaterThan(0)
       expect(err.issues[0]).toHaveProperty('message')
     })
 
-    it('NonExhaustiveError from .default("assert") also has .issues', () => {
+    it('MatchError from .default("assert") also has .issues', () => {
       try {
         match(42).case(z.string(), () => 'str').default('assert')
         expect.unreachable('should throw')
       } catch (e) {
-        expect(e).toBeInstanceOf(NonExhaustiveError)
-        const err = e as NonExhaustiveError
+        expect(e).toBeInstanceOf(MatchError)
+        const err = e as MatchError
         expect(err.issues).toBeDefined()
         expect(err.issues.length).toBeGreaterThan(0)
       }

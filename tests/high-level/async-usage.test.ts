@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 
-import {match} from '../../src/index.js'
+import {match, MatchError} from '../../src/index.js'
 import {makeAsyncSchema, makeSchema} from '../helpers/standard-schema.js'
 
 describe('high-level/async-usage', () => {
@@ -44,5 +44,19 @@ describe('high-level/async-usage', () => {
 
     await expect(matcher({type: 'session.status', sessionId: 'abc'})).resolves.toBe('abc')
     await expect(matcher({type: 'message.updated', properties: {sessionId: 'xyz'}})).resolves.toBe('xyz')
+  })
+
+  it('provides lazy async error context to defaultAsync handlers', async () => {
+    const fn = match
+      .case(AsyncNumber, n => n)
+      .defaultAsync(async (_input, context) => {
+        const first = context.error
+        const second = context.error
+        expect(first).toBe(second)
+        expect(first).toBeInstanceOf(MatchError)
+        return -1
+      })
+
+    await expect(fn('nope')).resolves.toBe(-1)
   })
 })

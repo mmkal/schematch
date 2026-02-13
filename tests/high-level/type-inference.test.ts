@@ -1,7 +1,7 @@
 import {describe, expect, expectTypeOf, it} from 'vitest'
 import {z} from 'zod'
 
-import {match, NonExhaustiveError} from '../../src/index.js'
+import {match, MatchError} from '../../src/index.js'
 import type {StandardSchemaV1} from '../../src/index.js'
 import {makeAsyncSchema} from '../helpers/standard-schema.js'
 
@@ -174,7 +174,7 @@ describe('high-level/type-inference', () => {
   })
 
   describe('.default modes', () => {
-    it('.default("assert") throws NonExhaustiveError on no match', () => {
+    it('.default("assert") throws MatchError on no match', () => {
       const result = match(42)
         .case(z.string(), s => s.length)
         .case(z.number(), n => n + 1)
@@ -187,23 +187,35 @@ describe('high-level/type-inference', () => {
         match(true as unknown)
           .case(z.string(), () => 'str')
           .default('assert')
-      ).toThrow(NonExhaustiveError)
+      ).toThrow(MatchError)
     })
 
-    it('.default("reject") returns NonExhaustiveError instead of throwing', () => {
+    it('.default("reject") returns MatchError instead of throwing', () => {
       const result = match(42)
         .case(z.string(), s => s.length)
         .default('reject')
 
-      expectTypeOf(result).toEqualTypeOf<number | NonExhaustiveError>()
-      expect(result).toBeInstanceOf(NonExhaustiveError)
+      expectTypeOf(result).toEqualTypeOf<number | MatchError>()
+      expect(result).toBeInstanceOf(MatchError)
 
       const result2 = match('hello')
         .case(z.string(), s => s.length)
         .default('reject')
 
-      expectTypeOf(result2).toEqualTypeOf<number | NonExhaustiveError>()
+      expectTypeOf(result2).toEqualTypeOf<number | MatchError>()
       expect(result2).toBe(5)
+    })
+
+    it('.default(handler) provides sync error context', () => {
+      const result = match(42)
+        .case(z.string(), s => s.length)
+        .default((input, context) => {
+          expectTypeOf(input).toEqualTypeOf<42>()
+          expectTypeOf(context.error).toEqualTypeOf<MatchError>()
+          return -1
+        })
+
+      expectTypeOf(result).toEqualTypeOf<number>()
     })
 
     it('.default("never") constrains input type in inline mode', () => {
@@ -240,7 +252,7 @@ describe('high-level/type-inference', () => {
 
       expect(matcher('hello')).toBe(5)
       expect(matcher(42)).toBe(43)
-      expect(() => matcher(true)).toThrow(NonExhaustiveError)
+      expect(() => matcher(true)).toThrow(MatchError)
     })
 
     it('.default("reject") reusable returns error union', () => {
@@ -248,10 +260,10 @@ describe('high-level/type-inference', () => {
         .case(z.string(), s => s.length)
         .default('reject')
 
-      expectTypeOf(matcher).toEqualTypeOf<(input: unknown) => number | NonExhaustiveError>()
+      expectTypeOf(matcher).toEqualTypeOf<(input: unknown) => number | MatchError>()
 
       expect(matcher('hello')).toBe(5)
-      expect(matcher(42)).toBeInstanceOf(NonExhaustiveError)
+      expect(matcher(42)).toBeInstanceOf(MatchError)
     })
 
     it('.defaultAsync("never") async reusable constrains input from schema input type', () => {
@@ -283,8 +295,20 @@ describe('high-level/type-inference', () => {
         .case(z.string(), s => s.length)
         .defaultAsync('reject')
 
-      expectTypeOf(result).toEqualTypeOf<number | NonExhaustiveError>()
-      expect(result).toBeInstanceOf(NonExhaustiveError)
+      expectTypeOf(result).toEqualTypeOf<number | MatchError>()
+      expect(result).toBeInstanceOf(MatchError)
+    })
+
+    it('.defaultAsync(handler) provides async error context', () => {
+      const result = match(42)
+        .case(z.string(), s => s.length)
+        .defaultAsync(async (input, context) => {
+          expectTypeOf(input).toEqualTypeOf<42>()
+          expectTypeOf(context.error).toEqualTypeOf<MatchError>()
+          return -1
+        })
+
+      expectTypeOf(result).toEqualTypeOf<Promise<number>>()
     })
   })
 

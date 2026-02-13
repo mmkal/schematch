@@ -1,5 +1,5 @@
 export {match} from './match.js'
-export {NonExhaustiveError} from './errors.js'
+export {MatchError} from './errors.js'
 
 export type {StandardSchemaV1} from './standard-schema/contract.js'
 export {prettifyStandardSchemaError, StandardSchemaV1Error, toDotPath} from './standard-schema/errors.js'

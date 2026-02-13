@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 
-import {match, NonExhaustiveError} from '../../src/index.js'
+import {match, MatchError} from '../../src/index.js'
 import {makeSchema} from '../helpers/standard-schema.js'
 
 describe('ported/exhaustive', () => {
@@ -11,6 +11,6 @@ describe('ported/exhaustive', () => {
       match(1)
         .case(Two, () => 'two')
         .default('assert')
-    ).toThrow(NonExhaustiveError)
+    ).toThrow(MatchError)
   })
 })

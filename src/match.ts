@@ -4,8 +4,8 @@ import {ASYNC_REQUIRED, NO_MATCH, matchSchemaAsync, matchSchemaSync, extractDisc
 import type {DiscriminatorInfo} from './standard-schema/compiled.js'
 import {isPromiseLike, validateSync} from './standard-schema/validation.js'
 import type {InferInput, InferOutput} from './types.js'
-import {NonExhaustiveError} from './errors.js'
-import type {NonExhaustiveErrorOptions} from './errors.js'
+import {MatchError} from './errors.js'
+import type {MatchErrorOptions} from './errors.js'
 
 /** Resolves `Unset` to `never` for use in StandardSchema types. */
 type ResolveOutput<T> = T extends typeof unset ? never : T
@@ -56,6 +56,14 @@ type AtCaseValues<input, key extends PropertyKey> =
     : never
 
 type AtCaseInput<input, key extends PropertyKey, value> = Extract<input, Record<key, value>>
+
+type DefaultContext = {
+  readonly error: MatchError
+}
+
+type DefaultAsyncContext = {
+  readonly error: MatchError
+}
 
 type MatchState<output> =
   | {matched: true; value: output}
@@ -162,32 +170,32 @@ class MatchExpression<input, output, CaseInputs = never> {
   /**
    * Terminates the match expression with a default behavior when no case matches.
    *
-   * @overload `.default('assert')` — Throws a {@link NonExhaustiveError} if no case matched. Accepts any input.
-   * @overload `.default('never')` — Throws a {@link NonExhaustiveError} if no case matched. Produces a type error if the input doesn't match the union of case input types.
-   * @overload `.default('reject')` — Returns a {@link NonExhaustiveError} instance (instead of throwing) if no case matched. Accepts any input.
+   * @overload `.default('assert')` — Throws a {@link MatchError} if no case matched. Accepts any input.
+   * @overload `.default('never')` — Throws a {@link MatchError} if no case matched. Produces a type error if the input doesn't match the union of case input types.
+   * @overload `.default('reject')` — Returns a {@link MatchError} instance (instead of throwing) if no case matched. Accepts any input.
    * @overload `.default(handler)` — Calls the handler with the input value if no case matched.
    */
   default(
-    /** Throw a {@link NonExhaustiveError} if no case matched. Accepts any input type. */
+    /** Throw a {@link MatchError} if no case matched. Accepts any input type. */
     mode: 'assert'
   ): output
   default(
     /**
-     * Throw a {@link NonExhaustiveError} if no case matched.
+     * Throw a {@link MatchError} if no case matched.
      * Constrains the input type to the union of all case schema input types —
      * produces a compile-time error if the match input doesn't extend that union.
      */
     mode: input extends CaseInputs ? 'never' : never
   ): output
   default(
-    /** Return a {@link NonExhaustiveError} instance (instead of throwing) if no case matched. */
+    /** Return a {@link MatchError} instance (instead of throwing) if no case matched. */
     mode: 'reject'
-  ): output | NonExhaustiveError
+  ): output | MatchError
   default<result>(
-    /** A fallback handler called with the raw input when no case matched. */
-    handler: (value: input) => result
+    /** A fallback handler called with the raw input and lazy match error when no case matched. */
+    handler: (value: input, context: DefaultContext) => result
   ): WithReturn<output, result>
-  default(modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input) => unknown)): unknown {
+  default(modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input, context: DefaultContext) => unknown)): unknown {
     const matcher = new ReusableMatcher<input, output, CaseInputs>(
       unmatched as MatchState<output>,
       this.clauses as Array<ReusableClause<input> | ReusableWhenClause<input>>
@@ -209,18 +217,18 @@ class MatchExpression<input, output, CaseInputs = never> {
   ): Promise<Awaited<output>>
   defaultAsync(
     mode: 'reject'
-  ): Promise<Awaited<output> | NonExhaustiveError>
+  ): Promise<Awaited<output> | MatchError>
   defaultAsync<result>(
-    handler: (value: input) => result | Promise<result>
+    handler: (value: input, context: DefaultAsyncContext) => result | Promise<result>
   ): Promise<WithAsyncReturn<output, result>>
   defaultAsync(
-    modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input) => unknown | Promise<unknown>)
+    modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input, context: DefaultAsyncContext) => unknown | Promise<unknown>)
   ): Promise<unknown> {
-    const matcher = new ReusableMatcherAsync<input, output, CaseInputs>(
-      Promise.resolve(unmatched as MatchState<output>),
-      this.clauses as Array<ReusableClauseAsync<input> | ReusableWhenClauseAsync<input>>
+    const matcher = new ReusableMatcher<input, output, CaseInputs>(
+      unmatched as MatchState<output>,
+      this.clauses as Array<ReusableClause<input> | ReusableWhenClause<input>>
     )
-    const run = matcher.default(modeOrHandler as any) as (input: input) => Promise<unknown>
+    const run = matcher.defaultAsync(modeOrHandler as any) as (input: input) => Promise<unknown>
     return run(this.input)
   }
 
@@ -437,38 +445,46 @@ class ReusableMatcher<input, output, CaseInputs = never> {
   /**
    * Terminates the reusable matcher and returns a function that executes the match.
    *
-   * @overload `.default('assert')` — Returns a function that throws {@link NonExhaustiveError} on no match. Accepts `unknown` input.
-   * @overload `.default('never')` — Returns a function that throws {@link NonExhaustiveError} on no match. Input type is constrained to the union of case schema input types.
-   * @overload `.default('reject')` — Returns a function whose return type includes {@link NonExhaustiveError} (returned, not thrown) on no match.
+   * @overload `.default('assert')` — Returns a function that throws {@link MatchError} on no match. Accepts `unknown` input.
+   * @overload `.default('never')` — Returns a function that throws {@link MatchError} on no match. Input type is constrained to the union of case schema input types.
+   * @overload `.default('reject')` — Returns a function whose return type includes {@link MatchError} (returned, not thrown) on no match.
    * @overload `.default(handler)` — Returns a function that calls the handler on no match.
    */
   default(
-    /** Throw a {@link NonExhaustiveError} if no case matched. Accepts any input type. */
+    /** Throw a {@link MatchError} if no case matched. Accepts any input type. */
     mode: 'assert'
   ): (input: input) => output
   default(
     /**
-     * Throw a {@link NonExhaustiveError} if no case matched.
+     * Throw a {@link MatchError} if no case matched.
      * The returned function's input type is constrained to the union of all case schema input types.
      */
     mode: 'never'
   ): (input: CaseInputs) => output
   default(
-    /** Return a {@link NonExhaustiveError} instance (instead of throwing) if no case matched. */
+    /** Return a {@link MatchError} instance (instead of throwing) if no case matched. */
     mode: 'reject'
-  ): (input: input) => output | NonExhaustiveError
+  ): (input: input) => output | MatchError
   default<result>(
-    /** A fallback handler called with the raw input when no case matched. */
-    handler: (value: input) => result
+    /** A fallback handler called with the raw input and lazy match error when no case matched. */
+    handler: (value: input, context: DefaultContext) => result
   ): (input: input) => WithReturn<output, result>
-  default(modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input) => unknown)): (input: any) => unknown {
+  default(modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input, context: DefaultContext) => unknown)): (input: any) => unknown {
     const allSchemas = this.clauses.flatMap(c => 'schemas' in c ? c.schemas : [])
 
     if (typeof modeOrHandler === 'function') {
       return (input: input) => {
         const state = this.exec(input)
         if (state.matched) return state.value
-        return modeOrHandler(input)
+        let error: MatchError | undefined
+        const buildError = () => this.buildMatchError(input, allSchemas)
+        const context: DefaultContext = {
+          get error() {
+            if (!error) error = buildError()
+            return error
+          },
+        }
+        return modeOrHandler(input, context)
       }
     }
 
@@ -476,15 +492,16 @@ class ReusableMatcher<input, output, CaseInputs = never> {
       return (input: input) => {
         const state = this.exec(input)
         if (state.matched) return state.value
-        return this.buildNonExhaustiveError(input, allSchemas)
+        return this.buildMatchError(input, allSchemas)
       }
     }
 
+    modeOrHandler satisfies 'assert' | 'never';
     // 'assert' and 'never' both throw at runtime
     return (input: input) => {
       const state = this.exec(input)
       if (state.matched) return state.value
-      throw this.buildNonExhaustiveError(input, allSchemas)
+      throw this.buildMatchError(input, allSchemas)
     }
   }
 
@@ -501,23 +518,51 @@ class ReusableMatcher<input, output, CaseInputs = never> {
   ): (input: CaseInputs) => Promise<Awaited<output>>
   defaultAsync(
     mode: 'reject'
-  ): (input: input) => Promise<Awaited<output> | NonExhaustiveError>
+  ): (input: input) => Promise<Awaited<output> | MatchError>
   defaultAsync<result>(
-    handler: (value: input) => result | Promise<result>
+    handler: (value: input, context: DefaultAsyncContext) => result | Promise<result>
   ): (input: input) => Promise<WithAsyncReturn<output, result>>
   defaultAsync(
-    modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input) => unknown | Promise<unknown>)
+    modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input, context: DefaultAsyncContext) => unknown | Promise<unknown>)
   ): (input: any) => Promise<unknown> {
-    const asyncMatcher = new ReusableMatcherAsync<input, output, CaseInputs>(
-      Promise.resolve(this.terminal as MatchState<output>),
-      this.clauses as Array<ReusableClauseAsync<input> | ReusableWhenClauseAsync<input>>
-    )
-    return asyncMatcher.default(modeOrHandler as any)
+    const allSchemas = this.clauses.flatMap(c => 'schemas' in c ? c.schemas : [])
+
+    if (typeof modeOrHandler === 'function') {
+      return async (input: input) => {
+        const state = await this.execAsync(input)
+        if (state.matched) return state.value
+        let error: MatchError | undefined
+        const buildError = () => this.buildMatchError(input, allSchemas)
+        const context: DefaultAsyncContext = {
+          get error() {
+            if (!error) error = buildError()
+            return error
+          },
+        }
+        return await modeOrHandler(input, context)
+      }
+    }
+
+    if (modeOrHandler === 'reject') {
+      return async (input: input) => {
+        const state = await this.execAsync(input)
+        if (state.matched) return state.value
+        return this.buildMatchError(input, allSchemas)
+      }
+    }
+
+    modeOrHandler satisfies 'assert' | 'never';
+    // 'assert' and 'never' both throw at runtime
+    return async (input: input) => {
+      const state = await this.execAsync(input)
+      if (state.matched) return state.value
+      throw this.buildMatchError(input, allSchemas)
+    }
   }
 
-  private buildNonExhaustiveError(input: input, allSchemas: StandardSchemaV1[]): NonExhaustiveError {
+  private buildMatchError(input: input, allSchemas: StandardSchemaV1[]): MatchError {
     const dispatch = this.getDispatch()
-    const errorOptions: NonExhaustiveErrorOptions = {schemas: allSchemas}
+    const errorOptions: MatchErrorOptions = {schemas: allSchemas}
     if (dispatch) {
       const discValue = isPlainObject(input)
         ? (input as Record<string, unknown>)[dispatch.key]
@@ -538,7 +583,7 @@ class ReusableMatcher<input, output, CaseInputs = never> {
         })
       }
     }
-    return new NonExhaustiveError(input, errorOptions)
+    return new MatchError(input, errorOptions)
   }
 
   /** Build a standard-schema FailureResult for use in `~standard.validate`. */
@@ -602,6 +647,27 @@ class ReusableMatcher<input, output, CaseInputs = never> {
     return null
   }
 
+  private async execClauseAsync(
+    clause: ReusableClause<input> | ReusableWhenClause<input>,
+    input: input
+  ): Promise<MatchState<Awaited<output>> | null> {
+    if ('when' in clause) {
+      if (!(await clause.when(input))) return null
+      return {matched: true, value: await clause.handler(input, input) as Awaited<output>}
+    }
+
+    for (let j = 0; j < clause.schemas.length; j += 1) {
+      const result = await matchSchemaAsync(clause.schemas[j], input)
+      if (result === NO_MATCH) continue
+
+      if (clause.predicate && !(await clause.predicate(result, input))) continue
+
+      return {matched: true, value: await clause.handler(result, input) as Awaited<output>}
+    }
+
+    return null
+  }
+
   private exec(input: input): MatchState<output> {
     const dispatch = this.getDispatch()
 
@@ -629,6 +695,32 @@ class ReusableMatcher<input, output, CaseInputs = never> {
     }
 
     return this.terminal
+  }
+
+  private async execAsync(input: input): Promise<MatchState<Awaited<output>>> {
+    const dispatch = this.getDispatch()
+
+    if (dispatch && isPlainObject(input)) {
+      const discriminatorValue = (input as Record<string, unknown>)[dispatch.key]
+      const candidates = dispatch.table.get(discriminatorValue)
+      const candidateSet = candidates ? new Set(candidates) : null
+
+      for (let i = 0; i < this.clauses.length; i += 1) {
+        if (!candidateSet?.has(i) && !dispatch.fallbackSet.has(i)) continue
+        const result = await this.execClauseAsync(this.clauses[i], input)
+        if (result) return result
+      }
+    } else {
+      for (let i = 0; i < this.clauses.length; i += 1) {
+        const result = await this.execClauseAsync(this.clauses[i], input)
+        if (result) return result
+      }
+    }
+
+    if (this.terminal.matched) {
+      return {matched: true, value: await this.terminal.value as Awaited<output>}
+    }
+    return unmatched as MatchState<Awaited<output>>
   }
 }
 
@@ -673,11 +765,11 @@ class ReusableMatcherAt<input, output, CaseInputs = never, key extends PropertyK
   ): (input: CaseInputs) => output
   default(
     mode: 'reject'
-  ): (input: input) => output | NonExhaustiveError
+  ): (input: input) => output | MatchError
   default<result>(
-    handler: (value: input) => result
+    handler: (value: input, context: DefaultContext) => result
   ): (input: input) => WithReturn<output, result>
-  default(modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input) => unknown)): (input: any) => unknown {
+  default(modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input, context: DefaultContext) => unknown)): (input: any) => unknown {
     return this.matcher.default(modeOrHandler as any) as any
   }
 
@@ -689,217 +781,13 @@ class ReusableMatcherAt<input, output, CaseInputs = never, key extends PropertyK
   ): (input: CaseInputs) => Promise<Awaited<output>>
   defaultAsync(
     mode: 'reject'
-  ): (input: input) => Promise<Awaited<output> | NonExhaustiveError>
+  ): (input: input) => Promise<Awaited<output> | MatchError>
   defaultAsync<result>(
-    handler: (value: input) => result | Promise<result>
+    handler: (value: input, context: DefaultAsyncContext) => result | Promise<result>
   ): (input: input) => Promise<WithAsyncReturn<output, result>>
   defaultAsync(
-    modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input) => unknown | Promise<unknown>)
+    modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input, context: DefaultAsyncContext) => unknown | Promise<unknown>)
   ): (input: any) => Promise<unknown> {
     return this.matcher.defaultAsync(modeOrHandler as any) as any
-  }
-}
-
-// ─── ReusableMatcherAsync (async reusable) ───────────────────────────────────
-
-type ReusableClauseAsync<input> = {
-  schemas: StandardSchemaV1[]
-  predicate?: (value: unknown, input: input) => unknown | Promise<unknown>
-  handler: (value: unknown, input: input) => unknown | Promise<unknown>
-}
-
-type ReusableWhenClauseAsync<input> = {
-  when: (input: input) => unknown | Promise<unknown>
-  handler: (value: input, input: input) => unknown | Promise<unknown>
-}
-
-class ReusableMatcherAsync<input, output, CaseInputs = never> {
-  private dispatch: DispatchTable | null | undefined = undefined
-
-  /**
-   * Standard Schema V1 interface (async). The matcher itself is a valid standard-schema:
-   * - `validate(value)` tries all cases in order and returns `Promise<{ value }>` on match or `Promise<{ issues }>` on failure.
-   * - `types.input` is the union of all case schema input types (`CaseInputs`).
-   * - `types.output` is the union of all case handler return types.
-   */
-  readonly '~standard': StandardSchemaV1.Props<CaseInputs, ResolveOutput<output>>
-
-  constructor(
-    private readonly terminal: Promise<MatchState<output>>,
-    private readonly clauses: Array<ReusableClauseAsync<input> | ReusableWhenClauseAsync<input>> = []
-  ) {
-    this['~standard'] = {
-      version: 1,
-      vendor: 'schematch',
-      validate: async (value: unknown): Promise<StandardSchemaV1.Result<ResolveOutput<output>>> => {
-        const state = await this.exec(value as input)
-        if (state.matched) {
-          return {value: state.value as ResolveOutput<output>}
-        }
-        return this.buildFailureResult(value)
-      },
-    }
-  }
-
-  private getDispatch(): DispatchTable | null {
-    if (this.dispatch === undefined) {
-      this.dispatch = buildDispatchTable(this.clauses as Array<ReusableClause<input> | ReusableWhenClause<input>>)
-    }
-    return this.dispatch
-  }
-
-  /**
-   * Terminates the async reusable matcher and returns a function that executes the match.
-   *
-   * @overload `.default('assert')` — Returns an async function that throws {@link NonExhaustiveError} on no match.
-   * @overload `.default('never')` — Returns an async function that throws on no match, with input constrained to case union.
-   * @overload `.default('reject')` — Returns an async function that resolves to {@link NonExhaustiveError} on no match.
-   * @overload `.default(handler)` — Returns an async function that calls the handler on no match.
-   */
-  default(
-    /** Throw a {@link NonExhaustiveError} if no case matched. Accepts any input type. */
-    mode: 'assert'
-  ): (input: input) => Promise<output>
-  default(
-    /**
-     * Throw a {@link NonExhaustiveError} if no case matched.
-     * The returned function's input type is constrained to the union of all case schema input types.
-     */
-    mode: 'never'
-  ): (input: CaseInputs) => Promise<output>
-  default(
-    /** Resolve to a {@link NonExhaustiveError} instance if no case matched. */
-    mode: 'reject'
-  ): (input: input) => Promise<output | NonExhaustiveError>
-  default<result>(
-    /** A fallback handler called with the raw input when no case matched. */
-    handler: (value: input) => result | Promise<result>
-  ): (input: input) => Promise<WithAsyncReturn<output, result>>
-  default(modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input) => unknown | Promise<unknown>)): (input: any) => Promise<unknown> {
-    const allSchemas = this.clauses.flatMap(c => 'schemas' in c ? c.schemas : [])
-
-    if (typeof modeOrHandler === 'function') {
-      return async (input: input) => {
-        const state = await this.exec(input)
-        if (state.matched) return state.value
-        return await modeOrHandler(input)
-      }
-    }
-
-    if (modeOrHandler === 'reject') {
-      return async (input: input) => {
-        const state = await this.exec(input)
-        if (state.matched) return state.value
-        return this.buildNonExhaustiveError(input, allSchemas)
-      }
-    }
-
-    // 'assert' and 'never' both throw at runtime
-    return async (input: input) => {
-      const state = await this.exec(input)
-      if (state.matched) return state.value
-      throw this.buildNonExhaustiveError(input, allSchemas)
-    }
-  }
-
-  private buildNonExhaustiveError(input: input, allSchemas: StandardSchemaV1[]): NonExhaustiveError {
-    const dispatch = this.getDispatch()
-    const errorOptions: NonExhaustiveErrorOptions = {schemas: allSchemas}
-    if (dispatch) {
-      const discValue = isPlainObject(input)
-        ? (input as Record<string, unknown>)[dispatch.key]
-        : undefined
-      const candidates = isPlainObject(input) ? dispatch.table.get(discValue) : null
-      const matched = candidates !== null && candidates !== undefined
-      errorOptions.discriminator = {
-        key: dispatch.key,
-        value: discValue,
-        expected: dispatch.expectedValues,
-        matched,
-      }
-      if (matched) {
-        errorOptions.schemas = candidates.flatMap(i => {
-          const clause = this.clauses[i]
-          return 'schemas' in clause ? clause.schemas : []
-        })
-      }
-    }
-    return new NonExhaustiveError(input, errorOptions)
-  }
-
-  /** Build a standard-schema FailureResult for use in `~standard.validate`. */
-  private buildFailureResult(value: unknown): StandardSchemaV1.FailureResult {
-    const allSchemas = this.clauses.flatMap(c => 'schemas' in c ? c.schemas : [])
-    const issues: StandardSchemaV1.Issue[] = []
-
-    for (let i = 0; i < allSchemas.length; i += 1) {
-      try {
-        const result = validateSync(allSchemas[i], value)
-        if ('issues' in result && result.issues) {
-          for (const issue of result.issues) {
-            issues.push({
-              message: `Case ${i + 1}: ${issue.message}`,
-              path: issue.path,
-            })
-          }
-        }
-      } catch {
-        // async schema or validation threw — skip
-      }
-    }
-
-    if (issues.length === 0) {
-      let displayedValue: string
-      try { displayedValue = JSON.stringify(value) } catch { displayedValue = String(value) }
-      issues.push({message: `No schema matches value ${displayedValue}`})
-    }
-
-    return {issues}
-  }
-
-  private async execClause(
-    clause: ReusableClauseAsync<input> | ReusableWhenClauseAsync<input>,
-    input: input
-  ): Promise<MatchState<output> | null> {
-    if ('when' in clause) {
-      if (!(await clause.when(input))) return null
-      return {matched: true, value: await clause.handler(input, input) as output}
-    }
-
-    for (let j = 0; j < clause.schemas.length; j += 1) {
-      const result = await matchSchemaAsync(clause.schemas[j], input)
-      if (result === NO_MATCH) continue
-
-      if (clause.predicate && !(await clause.predicate(result, input))) continue
-
-      return {matched: true, value: await clause.handler(result, input) as output}
-    }
-
-    return null
-  }
-
-  private async exec(input: input): Promise<MatchState<output>> {
-    const dispatch = this.getDispatch()
-
-    if (dispatch && isPlainObject(input)) {
-      const discriminatorValue = (input as Record<string, unknown>)[dispatch.key]
-      const candidates = dispatch.table.get(discriminatorValue)
-      const candidateSet = candidates ? new Set(candidates) : null
-
-      for (let i = 0; i < this.clauses.length; i += 1) {
-        if (!candidateSet?.has(i) && !dispatch.fallbackSet.has(i)) continue
-        const result = await this.execClause(this.clauses[i], input)
-        if (result) return result
-      }
-
-      return await this.terminal
-    }
-
-    for (let i = 0; i < this.clauses.length; i += 1) {
-      const result = await this.execClause(this.clauses[i], input)
-      if (result) return result
-    }
-
-    return await this.terminal
   }
 }

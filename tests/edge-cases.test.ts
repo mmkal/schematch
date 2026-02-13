@@ -3,7 +3,8 @@ import {z} from 'zod'
 import * as v from 'valibot'
 import {type} from 'arktype'
 
-import {match, NonExhaustiveError} from '../src/index.js'
+import {match, MatchError} from '../src/index.js'
+import type {StandardSchemaV1} from '../src/index.js'
 
 describe('edge cases', () => {
   describe('overlapping schemas — first match wins', () => {
@@ -389,8 +390,8 @@ describe('edge cases', () => {
           .default('assert')
         expect.unreachable('should have thrown')
       } catch (e) {
-        expect(e).toBeInstanceOf(NonExhaustiveError)
-        const err = e as NonExhaustiveError
+        expect(e).toBeInstanceOf(MatchError)
+        const err = e as MatchError
         expect(err.message).toContain('unknown')
         expect(err.message).toContain('Case 1')
       }
@@ -409,8 +410,8 @@ describe('edge cases', () => {
         m({type: 'unknown'})
         expect.unreachable('should have thrown')
       } catch (e) {
-        expect(e).toBeInstanceOf(NonExhaustiveError)
-        const err = e as NonExhaustiveError
+        expect(e).toBeInstanceOf(MatchError)
+        const err = e as MatchError
         // Should mention discriminator key and expected values
         expect(err.message).toContain("Discriminator 'type'")
         expect(err.message).toContain('"unknown"')
@@ -441,8 +442,8 @@ describe('edge cases', () => {
         m({type: 'ok', value: 'not a number'})
         expect.unreachable('should have thrown')
       } catch (e) {
-        expect(e).toBeInstanceOf(NonExhaustiveError)
-        const err = e as NonExhaustiveError
+        expect(e).toBeInstanceOf(MatchError)
+        const err = e as MatchError
         expect(err.message).toContain('not a number')
         expect(err.message).toContain('Case 1')
         // Should only show issues from the matched discriminator branch (OkSchema),
@@ -462,8 +463,8 @@ describe('edge cases', () => {
           .default('assert')
         expect.unreachable('should have thrown')
       } catch (e) {
-        expect(e).toBeInstanceOf(NonExhaustiveError)
-        const err = e as NonExhaustiveError
+        expect(e).toBeInstanceOf(MatchError)
+        const err = e as MatchError
         expect(err.schemas).toHaveLength(2)
       }
     })
@@ -477,6 +478,43 @@ describe('edge cases', () => {
         .default(() => 'custom fallback')
 
       expect(m({type: 'other'})).toBe('custom fallback')
+    })
+
+    it('default context error is lazy and memoized', () => {
+      let validations = 0
+      const CountingSchema: StandardSchemaV1<unknown, string> = {
+        '~standard': {
+          version: 1,
+          vendor: 'test',
+          validate: (value: unknown) => {
+            validations += 1
+            return typeof value === 'string'
+              ? {value}
+              : {issues: [{message: 'expected string'}]}
+          },
+        },
+      }
+
+      const withoutError = match
+        .case(CountingSchema, value => value)
+        .default(() => 'fallback')
+
+      expect(withoutError(123)).toBe('fallback')
+      expect(validations).toBe(1)
+
+      validations = 0
+      const withError = match
+        .case(CountingSchema, value => value)
+        .default((_input, context) => {
+          const first = context.error
+          const second = context.error
+          expect(first).toBe(second)
+          return 'fallback'
+        })
+
+      expect(withError(123)).toBe('fallback')
+      // one validation during matching + one validation pass during lazy MatchError construction
+      expect(validations).toBe(2)
     })
   })
 })

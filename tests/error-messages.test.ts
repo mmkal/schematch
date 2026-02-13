@@ -1,27 +1,27 @@
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {z} from 'zod'
 import * as v from 'valibot'
 import {type} from 'arktype'
 
-import {match, NonExhaustiveError} from '../src/index.js'
+import {match, MatchError} from '../src/index.js'
 
 /** Helper: extract the error message from a throwing function */
-function getError(fn: () => unknown): NonExhaustiveError {
+function getError(fn: () => unknown): MatchError {
   try {
     fn()
     throw new Error('Expected function to throw')
   } catch (e) {
-    if (e instanceof NonExhaustiveError) return e
+    if (e instanceof MatchError) return e
     throw e
   }
 }
 
-async function getAsyncError(fn: () => Promise<unknown>): Promise<NonExhaustiveError> {
+async function getAsyncError(fn: () => Promise<unknown>): Promise<MatchError> {
   try {
     await fn()
     throw new Error('Expected function to throw')
   } catch (e) {
-    if (e instanceof NonExhaustiveError) return e
+    if (e instanceof MatchError) return e
     throw e
   }
 }
@@ -227,5 +227,24 @@ describe('error message snapshots', () => {
             ✖ Invalid input: expected "ok" → at type"
       `)
     })
+  })
+
+  it('default handler error message', () => {
+    const log = vi.fn()
+    const routeWebhook = match
+      .case(z.object({type: z.literal('invoice.paid')}), () => 'invoice-paid')
+      .case(z.object({type: z.literal('invoice.payment_failed')}), () => 'invoice-failed')
+      .default((_value, {error}) => {
+        log(error.message)
+        return 'unexpected'
+      })
+
+    const message = routeWebhook({type: 'invoice.refunded'})
+    expect(message).toBe('unexpected')
+    expect(log).toHaveBeenCalledOnce()
+    expect(log.mock.calls[0][0]).toMatchInlineSnapshot(`
+      "Schema matching error: no schema matches value {"type":"invoice.refunded"}
+        Discriminator 'type' has value "invoice.refunded" but expected one of: "invoice.paid", "invoice.payment_failed""
+    `)
   })
 })

@@ -21,6 +21,18 @@ const output = match(input)
   .default(() => 'unexpected')
 ```
 
+You can get a useful and pretty error message in the `.default` callback's second argument:
+
+```typescript
+const output = match(input)
+  .case(z.string(), s => `hello ${s.slice(1, 3)}`)
+  .case(z.array(z.number()), arr => `got ${arr.length} numbers`)
+  .default((_value, {error}) => {
+    console.warn(error.message) // "Schema matching error: no schema matches value ...\n  Case 1: ...\n  Case 2: ..."
+    return 'unexpected'
+  })
+```
+
 ## Reusable matcher builders
 
 You can prebuild a matcher once into a function, and reuse it across many inputs:
@@ -94,23 +106,28 @@ The `.default()` method terminates a match expression. It accepts a handler func
 | Mode | Input type | On no match | Return type | Penny for my thoughts |
 |---|---|---|---|---|
 | `.default(handler)` | `unknown` (or `.input<T>()`) | Calls handler | `Output \| HandlerReturn` | Sure |
-| `.default('never')` | Union of case inputs | Throws `NonExhaustiveError` | `Output` | The best one |
-| `.default('assert')` | `unknown` | Throws `NonExhaustiveError` | `Output` | I guess so |
-| `.default('reject')` | `unknown` | Returns `NonExhaustiveError` | `Output \| NonExhaustiveError` | Sometimes |
+| `.default('never')` | Union of case inputs | Throws `MatchError` | `Output` | The best one |
+| `.default('assert')` | `unknown` | Throws `MatchError` | `Output` | I guess so |
+| `.default('reject')` | `unknown` | Returns `MatchError` | `Output \| MatchError` | Sometimes |
 
 ### `.default(handler)`
 
-A fallback handler, called with the raw input when no case matched:
+A fallback handler, called with `(input, context)` when no case matched.
+
+`context.error` is lazy and memoized: it is constructed only when first accessed.
 
 ```typescript
 match(input)
   .case(z.string(), s => s.length)
-  .default(() => -1) // -1 when no case matches
+  .default((_input, {error}) => {
+    console.warn(error.message)
+    return -1
+  })
 ```
 
 ### `.default('never')`
 
-Throws a `NonExhaustiveError` at runtime if no case matched (like `'assert'`), and **constrains the input type** at compile time to the union of all case schema input types. If you like types which I think you do, this is best when you know the input will always be one of the declared cases:
+Throws a `MatchError` at runtime if no case matched (like `'assert'`), and **constrains the input type** at compile time to the union of all case schema input types. If you like types which I think you do, this is best when you know the input will always be one of the declared cases:
 
 ```typescript
 const fn = match
@@ -138,7 +155,7 @@ match('hello' as unknown)
 
 ### `.default('assert')`
 
-Like `'never'`, throws a `NonExhaustiveError` at runtime if no case matched. The input type is unconstrained (`unknown` for reusable matchers):
+Like `'never'`, throws a `MatchError` at runtime if no case matched. The input type is unconstrained (`unknown` for reusable matchers):
 
 ```typescript
 const fn = match
@@ -148,12 +165,12 @@ const fn = match
 
 fn('hello') // 5
 fn(42)      // 43
-fn(true)    // throws NonExhaustiveError
+fn(true)    // throws MatchError
 ```
 
 ### `.default('reject')`
 
-Returns a `NonExhaustiveError` instance instead of throwing. Useful in pipelines where you don't want try/catch:
+Returns a `MatchError` instance instead of throwing. Useful in pipelines where you don't want try/catch:
 
 ```typescript
 const fn = match
@@ -161,9 +178,9 @@ const fn = match
   .default('reject')
 
 const result = fn(42)
-// result has type: number | NonExhaustiveError
+// result has type: number | MatchError
 
-if (result instanceof NonExhaustiveError) {
+if (result instanceof MatchError) {
   console.log(result.issues) // standard-schema failure issues
 }
 ```
@@ -428,9 +445,9 @@ When `.default('assert')` throws because no branch matched, the error message in
 - **Discriminator info** (reusable matchers): If a dispatch table exists, the error reports the discriminator key, the actual value, and the expected values. For example: `Discriminator 'type' has value "unknown" but expected one of: "ok", "err"`.
 - **Per-schema validation issues**: The error re-validates the input against each candidate schema (or all schemas if no dispatch table exists) and formats the issues. For example: `Case 1: ✖ Expected number → at value`.
 
-Re-validation only happens on the error path, so there is no performance impact on successful matches. The `NonExhaustiveError` object also exposes `.schemas`, `.discriminator`, and `.issues` properties for programmatic access.
+Re-validation only happens on the error path, so there is no performance impact on successful matches. The `MatchError` object also exposes `.schemas`, `.discriminator`, and `.issues` properties for programmatic access.
 
-`NonExhaustiveError` implements `StandardSchemaV1.FailureResult`, so its `.issues` array conforms to the standard-schema spec.
+`MatchError` implements `StandardSchemaV1.FailureResult`, so its `.issues` array conforms to the standard-schema spec.
 
 ### Micro-optimisations
 
@@ -474,11 +491,11 @@ Sync matcher builder:
 - `.case(schema, predicate, handler)` - schema + guard
 - `.case(schemaA, schemaB, ..., handler)` - multiple schemas, first match wins
 - `.when(predicate, handler)` - no schema, just a predicate
-- `.default(handler)` — fallback handler for unmatched inputs
-- `.defaultAsync(handler)` — async fallback handler for unmatched inputs
-- `.default('assert')` — throw `NonExhaustiveError` if nothing matched
+- `.default(handler)` — fallback handler for unmatched inputs (`(input, {error})`)
+- `.defaultAsync(handler)` — async fallback handler (`(input, {error})`)
+- `.default('assert')` — throw `MatchError` if nothing matched
 - `.default('never')` — throw if nothing matched; type error if input doesn't extend case union
-- `.default('reject')` — return `NonExhaustiveError` instead of throwing
+- `.default('reject')` — return `MatchError` instead of throwing
 
 Nothing is evaluated until you call a terminal (`.default(...)` or `.defaultAsync(...)`).
 
@@ -553,7 +570,10 @@ Use `.defaultAsync(...)` when any case schema, guard, or handler is async.
 ```typescript
 const result = await match(input)
   .case(AsyncSchema, async value => transform(value))
-  .defaultAsync(() => fallback)
+  .defaultAsync(async (_input, {error}) => {
+    console.warn(error.message)
+    return fallback
+  })
 ```
 
 Reusable matchers work the same way:
@@ -566,7 +586,7 @@ const fn = match
 const result = await fn(input)
 ```
 
-### `NonExhaustiveError`
+### `MatchError`
 
 Thrown by `.default('assert')` / `.default('never')`, or returned by `.default('reject')`.
 
@@ -607,5 +627,5 @@ Use `schematch` when schema-driven validation is central and you want matching t
 ## Exports
 
 - `match`
-- `NonExhaustiveError`
+- `MatchError`
 - `StandardSchemaV1` and helper types: `InferInput`, `InferOutput`
