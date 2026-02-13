@@ -17,7 +17,7 @@ export const validateSync = <Output>(
 ): StandardSchemaV1.Result<Output> => {
   const result = schema['~standard'].validate(value)
   if (isPromiseLike(result)) {
-    throw new Error('Schema validation returned a Promise. Use matchAsync or isMatchingAsync instead.')
+    throw new Error('Schema validation returned a Promise. Use .defaultAsync(...) instead.')
   }
   return result
 }

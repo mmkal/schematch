@@ -206,7 +206,7 @@ outer(true)      // -1
 
 Type inference works through composition: `StandardSchemaV1.InferInput` gives the union of case input types, and `StandardSchemaV1.InferOutput` gives the union of handler return types.
 
-Async matchers (`matchAsync.case(...)`) work the same way. Their `validate` function returns a `Promise`.
+For async schemas/guards/handlers, use `.defaultAsync(...)` to execute the same matcher asynchronously.
 
 **Note:** Calling `.default()` terminates the matcher and returns a plain function. The returned function is not a StandardSchema. The schema interface lives on the matcher *before* `.default()` is called.
 
@@ -474,10 +474,13 @@ Sync matcher builder:
 - `.case(schema, predicate, handler)` - schema + guard
 - `.case(schemaA, schemaB, ..., handler)` - multiple schemas, first match wins
 - `.when(predicate, handler)` - no schema, just a predicate
-- `.default(handler)` - fallback handler for unmatched inputs
-- `.default('assert')` - throw `NonExhaustiveError` if nothing matched
-- `.default('never')` - throw if nothing matched; type error if input doesn't extend case union
-- `.default('reject')` - return `NonExhaustiveError` instead of throwing
+- `.default(handler)` — fallback handler for unmatched inputs
+- `.defaultAsync(handler)` — async fallback handler for unmatched inputs
+- `.default('assert')` — throw `NonExhaustiveError` if nothing matched
+- `.default('never')` — throw if nothing matched; type error if input doesn't extend case union
+- `.default('reject')` — return `NonExhaustiveError` instead of throwing
+
+Nothing is evaluated until you call a terminal (`.default(...)` or `.defaultAsync(...)`).
 
 `handler` receives `(parsedValue, input)`. For transforming schemas, `parsedValue` is transformed output; for non-transforming schemas, fast paths may pass through the input value.
 
@@ -543,13 +546,25 @@ const routeLead = match
   .default('assert')
 ```
 
-### `matchAsync(value)` / `matchAsync.case(...)`
+### `.defaultAsync(...)`
 
-Async equivalents for async schemas, guards, and handlers. Same API as sync variants, but `.default()` returns `Promise<...>` (inline) or `(input) => Promise<...>` (reusable).
+Use `.defaultAsync(...)` when any case schema, guard, or handler is async.
 
-### `isMatching(schema, value?)` / `isMatchingAsync(schema, value?)`
+```typescript
+const result = await match(input)
+  .case(AsyncSchema, async value => transform(value))
+  .defaultAsync(() => fallback)
+```
 
-Schema-backed type guards.
+Reusable matchers work the same way:
+
+```typescript
+const fn = match
+  .case(AsyncSchema, async value => transform(value))
+  .defaultAsync(() => fallback)
+
+const result = await fn(input)
+```
 
 ### `NonExhaustiveError`
 
@@ -564,7 +579,6 @@ Implements `StandardSchemaV1.FailureResult`. The `.issues` array contains per-ca
 - Return types are unioned across branches.
 - `.default('never')` constrains the reusable matcher's input to the union of case schema input types.
 - `StandardSchemaV1.InferInput<typeof matcher>` gives the case input union; `StandardSchemaV1.InferOutput<typeof matcher>` gives the handler return union.
-- `isMatching` narrows from `unknown` using schema output.
 
 ## Other fun stuff
 
@@ -586,13 +600,12 @@ Use `schematch` when schema-driven validation is central and you want matching t
 
 ## Caveats
 
-- Use `matchAsync`/`isMatchingAsync` for async schema validation.
+- Use `.defaultAsync(...)` for async schema validation, guards, or handlers.
 - `.default('assert')` and `.default('never')` provide runtime exhaustiveness, not compile-time algebraic exhaustiveness. TypeScript cannot verify that your case schemas cover every member of a union at the type level.
 - `.when()` clauses don't contribute to `CaseInputs` for `.default('never')`. Use `.input<T>()` for full control when mixing `.when()` with input constraints.
 
 ## Exports
 
-- `match`, `matchAsync`
-- `isMatching`, `isMatchingAsync`
+- `match`
 - `NonExhaustiveError`
 - `StandardSchemaV1` and helper types: `InferInput`, `InferOutput`

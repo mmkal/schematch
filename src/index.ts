@@ -1,5 +1,4 @@
-export {match, matchAsync} from './match.js'
-export {isMatching, isMatchingAsync} from './is-matching.js'
+export {match} from './match.js'
 export {NonExhaustiveError} from './errors.js'
 
 export type {StandardSchemaV1} from './standard-schema/contract.js'

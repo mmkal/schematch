@@ -1,7 +1,7 @@
 import {Schema} from 'effect'
 import {describe, expect, expectTypeOf, it} from 'vitest'
 
-import {isMatching, match} from '../../src/index.js'
+import {match} from '../../src/index.js'
 
 describe('effect schema', () => {
   it('matches string schema', () => {
@@ -138,15 +138,6 @@ describe('effect schema', () => {
     expect(classify(42)).toBe('number(42)')
     expect(classify(true)).toBe('bool(true)')
     expect(classify(null)).toBe('other')
-  })
-
-  it('works with isMatching', () => {
-    const isString = isMatching(Schema.standardSchemaV1(Schema.String))
-    expect(isString('hello')).toBe(true)
-    expect(isString(42)).toBe(false)
-
-    expect(isMatching(Schema.standardSchemaV1(Schema.Number), 5)).toBe(true)
-    expect(isMatching(Schema.standardSchemaV1(Schema.Number), 'nope')).toBe(false)
   })
 
   it('infers correct types', () => {

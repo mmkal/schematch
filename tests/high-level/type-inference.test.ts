@@ -1,7 +1,7 @@
 import {describe, expect, expectTypeOf, it} from 'vitest'
 import {z} from 'zod'
 
-import {isMatching, match, matchAsync, NonExhaustiveError} from '../../src/index.js'
+import {match, NonExhaustiveError} from '../../src/index.js'
 import type {StandardSchemaV1} from '../../src/index.js'
 import {makeAsyncSchema} from '../helpers/standard-schema.js'
 
@@ -31,23 +31,14 @@ describe('high-level/type-inference', () => {
     expectTypeOf(result).toEqualTypeOf<number | boolean>()
   })
 
-  it('narrows with isMatching type guards', () => {
-    const String = z.string()
-    const value: unknown = 'hello'
-
-    if (isMatching(String, value)) {
-      expectTypeOf(value).toEqualTypeOf<string>()
-    }
-  })
-
-  it('returns promise types for matchAsync', () => {
+  it('returns promise types for .defaultAsync', () => {
     const AsyncNumber = makeAsyncSchema<number>(
       (value): value is number => typeof value === 'number'
     )
 
-    const result = matchAsync(2)
+    const result = match(2)
       .case(AsyncNumber, value => value + 1)
-      .default(() => 0)
+      .defaultAsync(() => 0)
 
     expectTypeOf(result).toEqualTypeOf<Promise<number>>()
   })
@@ -155,29 +146,29 @@ describe('high-level/type-inference', () => {
     expectTypeOf(matcher).toEqualTypeOf<(input: unknown) => number>()
   })
 
-  it('supports .output<T>() on async matchers', () => {
+  it('supports .output<T>() with inline .defaultAsync', () => {
     const AsyncNumber = makeAsyncSchema<number>(
       (value): value is number => typeof value === 'number'
     )
 
-    const result = matchAsync(2)
+    const result = match(2)
       .output<number>()
       .case(AsyncNumber, value => value + 1)
-      .default(() => 0)
+      .defaultAsync(() => 0)
 
     expectTypeOf(result).toEqualTypeOf<Promise<number>>()
   })
 
-  it('supports .output<T>() on reusable async matchers', () => {
+  it('supports .output<T>() with reusable .defaultAsync', () => {
     const AsyncNumber = makeAsyncSchema<number>(
       (value): value is number => typeof value === 'number'
     )
 
-    const matcher = matchAsync
+    const matcher = match
       .input<unknown>()
       .output<number>()
       .case(AsyncNumber, value => value + 1)
-      .default(() => 0)
+      .defaultAsync(() => 0)
 
     expectTypeOf(matcher).toEqualTypeOf<(input: unknown) => Promise<number>>()
   })
@@ -263,34 +254,34 @@ describe('high-level/type-inference', () => {
       expect(matcher(42)).toBeInstanceOf(NonExhaustiveError)
     })
 
-    it('.default("never") async reusable constrains input from schema input type', () => {
+    it('.defaultAsync("never") async reusable constrains input from schema input type', () => {
       // makeAsyncSchema returns StandardSchemaV1<unknown, number>, so InferInput is unknown
       const AsyncNumber = makeAsyncSchema<number>(
         (value): value is number => typeof value === 'number'
       )
 
-      const matcher = matchAsync
+      const matcher = match
         .case(AsyncNumber, n => n + 1)
-        .default('never')
+        .defaultAsync('never')
 
       // Since the schema input type is unknown, 'never' mode also accepts unknown
       expectTypeOf(matcher).toEqualTypeOf<(input: unknown) => Promise<number>>()
     })
 
-    it('.default("never") async reusable constrains input with typed schemas', () => {
-      const matcher = matchAsync
+    it('.defaultAsync("never") async reusable constrains input with typed schemas', () => {
+      const matcher = match
         .case(z.string(), s => s.length)
         .case(z.number(), n => n + 1)
-        .default('never')
+        .defaultAsync('never')
 
       // Zod schemas have typed inputs, so the constraint should be string | number
       expectTypeOf(matcher).toEqualTypeOf<(input: string | number) => Promise<number>>()
     })
 
-    it('.default("reject") async inline resolves to error union', async () => {
-      const result = await matchAsync(42)
+    it('.defaultAsync("reject") async inline resolves to error union', async () => {
+      const result = await match(42)
         .case(z.string(), s => s.length)
-        .default('reject')
+        .defaultAsync('reject')
 
       expectTypeOf(result).toEqualTypeOf<number | NonExhaustiveError>()
       expect(result).toBeInstanceOf(NonExhaustiveError)
@@ -327,16 +318,5 @@ describe('high-level/type-inference', () => {
       expectTypeOf<Out>().toEqualTypeOf<number | string>()
     })
 
-    it('async matcher satisfies StandardSchemaV1 with Promise validate', () => {
-      const MySchema = matchAsync
-        .case(z.string(), s => s.length)
-        .case(z.number(), n => n + 1)
-
-      type In = StandardSchemaV1.InferInput<typeof MySchema>
-      expectTypeOf<In>().toEqualTypeOf<string | number>()
-
-      type Out = StandardSchemaV1.InferOutput<typeof MySchema>
-      expectTypeOf<Out>().toEqualTypeOf<number>()
-    })
   })
 })

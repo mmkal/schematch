@@ -1,7 +1,7 @@
 import {z} from 'zod/v3'
 import {describe, expect, expectTypeOf, it} from 'vitest'
 
-import {isMatching, match} from '../../src/index.js'
+import {match} from '../../src/index.js'
 
 describe('zod v3', () => {
   it('matches string schema', () => {
@@ -129,15 +129,6 @@ describe('zod v3', () => {
     expect(classify(42)).toBe('number(42)')
     expect(classify(true)).toBe('bool(true)')
     expect(classify(null)).toBe('other')
-  })
-
-  it('works with isMatching', () => {
-    const isString = isMatching(z.string())
-    expect(isString('hello')).toBe(true)
-    expect(isString(42)).toBe(false)
-
-    expect(isMatching(z.number(), 5)).toBe(true)
-    expect(isMatching(z.number(), 'nope')).toBe(false)
   })
 
   it('infers correct types', () => {

@@ -3,7 +3,7 @@ import {z} from 'zod'
 import * as v from 'valibot'
 import {type} from 'arktype'
 
-import {match, matchAsync, NonExhaustiveError} from '../src/index.js'
+import {match, NonExhaustiveError} from '../src/index.js'
 
 /** Helper: extract the error message from a throwing function */
 function getError(fn: () => unknown): NonExhaustiveError {
@@ -217,9 +217,9 @@ describe('error message snapshots', () => {
   describe('async matcher', () => {
     it('includes schemas in error', async () => {
       const err = await getAsyncError(() =>
-        matchAsync({type: 'unknown'})
+        match({type: 'unknown'})
           .case(z.object({type: z.literal('ok')}), () => 'ok')
-          .default('assert')
+          .defaultAsync('assert')
       )
       expect(err.message).toMatchInlineSnapshot(`
         "Schema matching error: no schema matches value {"type":"unknown"}

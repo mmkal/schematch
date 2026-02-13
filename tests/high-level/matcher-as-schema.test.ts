@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import * as v from 'valibot'
 
-import {match, matchAsync, NonExhaustiveError} from '../../src/index.js'
+import {match, NonExhaustiveError} from '../../src/index.js'
 import type {StandardSchemaV1} from '../../src/index.js'
 import {makeAsyncSchema} from '../helpers/standard-schema.js'
 
@@ -130,46 +130,38 @@ describe('matcher as StandardSchema', () => {
     })
   })
 
-  describe('async ReusableMatcherAsync', () => {
-    it('has a ~standard property with version 1 and vendor schematch', () => {
-      const m = matchAsync.case(z.string(), s => s.length)
-
-      expect(m['~standard'].version).toBe(1)
-      expect(m['~standard'].vendor).toBe('schematch')
-      expect(typeof m['~standard'].validate).toBe('function')
-    })
-
-    it('validate returns promise of success result on match', async () => {
-      const m = matchAsync
+  describe('defaultAsync terminal', () => {
+    it('supports inline async execution', async () => {
+      const result = await match('hello')
         .case(z.string(), s => s.length)
         .case(z.number(), n => n + 1)
+        .defaultAsync(() => -1)
 
-      const result = await m['~standard'].validate('hello')
-      expect(result).toEqual({value: 5})
+      expect(result).toBe(5)
     })
 
-    it('validate returns promise of failure result on no match', async () => {
-      const m = matchAsync
+    it('supports reusable async execution', async () => {
+      const m = match
         .case(z.string(), s => s.length)
+        .case(z.number(), n => n + 1)
+        .defaultAsync(() => -1)
 
-      const result = await m['~standard'].validate(42) as StandardSchemaV1.FailureResult
-      expect(result.issues).toBeDefined()
-      expect(result.issues.length).toBeGreaterThan(0)
+      await expect(m('hello')).resolves.toBe(5)
+      await expect(m(42)).resolves.toBe(43)
+      await expect(m(true)).resolves.toBe(-1)
     })
 
-    it('works with async schemas', async () => {
+    it('supports async schemas', async () => {
       const AsyncNumber = makeAsyncSchema<number>(
         (value): value is number => typeof value === 'number'
       )
 
-      const m = matchAsync
+      const fn = match
         .case(AsyncNumber, n => n * 2)
+        .defaultAsync(() => -1)
 
-      const result = await m['~standard'].validate(5)
-      expect(result).toEqual({value: 10})
-
-      const fail = await m['~standard'].validate('nope') as StandardSchemaV1.FailureResult
-      expect(fail.issues).toBeDefined()
+      await expect(fn(5)).resolves.toBe(10)
+      await expect(fn('nope')).resolves.toBe(-1)
     })
   })
 
