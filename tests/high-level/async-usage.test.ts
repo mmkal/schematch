@@ -18,7 +18,7 @@ describe('high-level/async-usage', () => {
 
   it('throws when sync match sees async schema validation', () => {
     expect(() => {
-      match(2).case(AsyncNumber, () => 'nope').default('assert')
+      match(2).case(AsyncNumber, () => 'nope').default(match.throw)
     }).toThrow('Schema validation returned a Promise. Use .defaultAsync(...) instead.')
   })
 
@@ -26,7 +26,7 @@ describe('high-level/async-usage', () => {
     const Number = makeSchema<number>((value): value is number => typeof value === 'number')
 
     expect(() => {
-      match(2).case(Number, async () => true, () => 'nope').default('assert')
+      match(2).case(Number, async () => true, () => 'nope').default(match.throw)
     }).toThrow('Guard returned a Promise. Use .defaultAsync(...) instead.')
   })
 
@@ -40,7 +40,7 @@ describe('high-level/async-usage', () => {
       .at('type')
       .case('session.status', async value => value.sessionId)
       .case('message.updated', async value => value.properties.sessionId)
-      .defaultAsync('assert')
+      .defaultAsync(match.throw)
 
     await expect(matcher({type: 'session.status', sessionId: 'abc'})).resolves.toBe('abc')
     await expect(matcher({type: 'message.updated', properties: {sessionId: 'xyz'}})).resolves.toBe('xyz')
@@ -49,7 +49,7 @@ describe('high-level/async-usage', () => {
   it('provides lazy async error context to defaultAsync handlers', async () => {
     const fn = match
       .case(AsyncNumber, n => n)
-      .defaultAsync(async (_input, context) => {
+      .defaultAsync(async context => {
         const first = context.error
         const second = context.error
         expect(first).toBe(second)

@@ -16,7 +16,7 @@ describe('ported/multiple-schemas', () => {
         return `num:${value}`
       })
       .case(Number, value => `other:${value}`)
-      .default('assert')
+      .default(match.throw)
 
     expect(result).toBe('num:3')
   })
@@ -25,7 +25,7 @@ describe('ported/multiple-schemas', () => {
     const result = match(9)
       .case(Two, Three, Four, value => `num:${value}`)
       .case(Number, value => `other:${value}`)
-      .default('assert')
+      .default(match.throw)
 
     expect(result).toBe('other:9')
   })

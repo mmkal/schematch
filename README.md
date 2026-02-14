@@ -27,7 +27,7 @@ You can get a useful and pretty error message in the `.default` callback's secon
 const output = match(input)
   .case(z.string(), s => `hello ${s.slice(1, 3)}`)
   .case(z.array(z.number()), arr => `got ${arr.length} numbers`)
-  .default((_value, {error}) => {
+  .default(({error}) => {
     console.warn(error.message) // "Schema matching error: no schema matches input (...)\n  Case 1: ...\n  Case 2: ..."
     return 'unexpected'
   })
@@ -99,41 +99,35 @@ const output = match(input)
   .default(() => 'unexpected')
 ```
 
-## `.default(mode)` - terminating a match
+## `.default(...)` - terminating a match
 
-The `.default()` method terminates a match expression. It accepts a handler function or one of three string modes, inspired by [ArkType's `match` API](https://arktype.io/docs/match):
+The `.default(...)` method terminates a match expression. It takes a fallback handler, called with a single context object when no case matched.
 
-| Mode | Input type | On no match | Return type | Penny for my thoughts |
-|---|---|---|---|---|
-| `.default(handler)` | `unknown` (or `.input<T>()`) | Calls handler | `Output \| HandlerReturn` | Sure |
-| `.default('never')` | Union of case inputs | Throws `MatchError` | `Output` | The best one |
-| `.default('assert')` | `unknown` | Throws `MatchError` | `Output` | I guess so |
-| `.default('reject')` | `unknown` | Returns `MatchError` | `Output \| MatchError` | Sometimes |
-
-### `.default(handler)`
-
-A fallback handler, called with `(input, context)` when no case matched.
-
-`context.error` is lazy and memoized: it is constructed only when first accessed.
+`context.input` is the unmatched input value. `context.error` is the `MatchError` (a standard-schema validation failure) from attempting to match against the cases specified (note: it is lazy and memoized, so if you don't use it, there's no cost).
 
 ```typescript
 match(input)
   .case(z.string(), s => s.length)
-  .default((_input, {error}) => {
+  .default(({error}) => {
     console.warn(error.message)
     return -1
   })
 ```
 
-### `.default('never')`
+### `.default(match.throw)`
 
-Throws a `MatchError` at runtime if no case matched (like `'assert'`), and **constrains the input type** at compile time to the union of all case schema input types. If you like types which I think you do, this is best when you know the input will always be one of the declared cases:
+`match.throw` is just a shorthand for `({error}) => {throw error}` - so using `.default(match.throw)` throws the error produced from failing to match any of the cases.
+
+
+### `.default<never>(match.throw)`
+
+Throws the `MatchError` at runtime if no case matched (like `.default(match.throw)`), and **constrains the input type** at compile time to the union of all case schema input types. If you like types which I think you do, this is best when you know the input will always be one of the declared cases:
 
 ```typescript
 const fn = match
   .case(z.string(), s => s.length)
   .case(z.number(), n => n + 1)
-  .default('never')
+  .default<never>(match.throw) // equivalent to `.default(({error}) => {throw error;})`
 
 // fn has type: (input: string | number) => number
 fn('hello') // 5
@@ -141,14 +135,14 @@ fn(42)      // 43
 fn(true)    // compile-time type error
 ```
 
-You can get the same type behavior with a custom fallback via `.default<never>(...)`:
+You can do whatever you like in a handler, for example logging errors to stderr:
 
 ```typescript
 const fn = match
   .case(z.string(), s => s.length)
   .case(z.number(), n => n + 1)
-  .default<never>((value, {error}) => {
-    value satisfies never
+  .default<never>(({input, error}) => {
+    input satisfies never
     console.warn(error.message)
     return -1
   })
@@ -156,41 +150,26 @@ const fn = match
 // fn has type: (input: string | number) => number
 ```
 
-For inline matchers, `'never'` produces a compile-time error if the input value doesn't extend the case union:
+For inline matchers, `<never>` produces a compile-time error if the input value doesn't extend the case union:
 
 ```typescript
 match(42 as number)
   .case(z.number(), n => n + 1)
-  .default('never') // ok: number extends number
+  .default<never>(match.throw) // ok: number extends number
 
 match('hello' as unknown)
   .case(z.number(), n => n + 1)
-  .default('never') // type error: unknown doesn't extend number
+  .default<never>(match.throw) // type error: unknown doesn't extend number
 ```
 
-### `.default('assert')`
+### `.default(({error}) => error)`
 
-Like `'never'`, throws a `MatchError` at runtime if no case matched. The input type is unconstrained (`unknown` for reusable matchers):
+You can also of course returns a `MatchError` instance instead of throwing. Useful in pipelines where you don't want try/catch:
 
 ```typescript
 const fn = match
   .case(z.string(), s => s.length)
-  .case(z.number(), n => n + 1)
-  .default('assert')
-
-fn('hello') // 5
-fn(42)      // 43
-fn(true)    // throws MatchError
-```
-
-### `.default('reject')`
-
-Returns a `MatchError` instance instead of throwing. Useful in pipelines where you don't want try/catch:
-
-```typescript
-const fn = match
-  .case(z.string(), s => s.length)
-  .default('reject')
+  .default(({error}) => error)
 
 const result = fn(42)
 // result has type: number | MatchError
@@ -202,7 +181,7 @@ if (result instanceof MatchError) {
 
 ## Matchers as Standard Schemas
 
-> "wow! *another* standard-schema is produced from compose schemas via schematch!" - Winston Churchill
+> "wow! *another* valid standard-schema is produced from schemas composed via schematch!" - Winston Churchill
 
 Reusable matchers (built with `match.case(...)`) are valid [Standard Schema V1](https://standardschema.dev) implementations. They expose a `'~standard'` property with `version: 1`, `vendor: 'schematch'`, and a `validate` function.
 
@@ -229,7 +208,7 @@ Stringify['~standard'].validate(null)     // { issues: [...] }
 const outer = match
   .case(Stringify, arr => arr.length)     // Stringify is the schema here
   .case(z.boolean(), () => -1)
-  .default('assert')
+  .default(match.throw)
 
 outer('a,b,c')  // 3
 outer(5)         // 5
@@ -240,7 +219,7 @@ Type inference works through composition: `StandardSchemaV1.InferInput` gives th
 
 For async schemas/guards/handlers, use `.defaultAsync(...)` to execute the same matcher asynchronously.
 
-**Note:** Calling `.default()` terminates the matcher and returns a plain function. The returned function is not a StandardSchema. The schema interface lives on the matcher *before* `.default()` is called.
+**Note:** Calling `.default(match.throw)` terminates the matcher and returns a plain function. The returned function is not a StandardSchema. The schema interface lives on the matcher *before* `.default(match.throw)` is called.
 
 ## Why use this
 
@@ -455,7 +434,7 @@ When multiple keys are literal-typed, preferred discriminator names (`type`, `ki
 
 ### Enhanced error messages
 
-When `.default('assert')` throws because no branch matched, the error message includes:
+When `.default(match.throw)` throws because no branch matched, the error message includes:
 
 - **Discriminator info** (reusable matchers): If a dispatch table exists, the error reports the discriminator key, the actual value, and the expected values. For example: `Discriminator 'type' has value "unknown" but expected one of: "ok", "err"`.
 - **Per-schema validation issues**: The error re-validates the input against each candidate schema (or all schemas if no dispatch table exists) and formats the issues. For example: `Case 1: ✖ Expected number → at value`.
@@ -485,7 +464,7 @@ A few smaller techniques contribute to throughput:
 | Partial precheck | Any compiled schema | Full validation on mismatches | Precheck call + full validation on match |
 | Reusable matcher | Hot paths with repeated matching | Fluent chain rebuild | Fixed clause array |
 | Discriminator dispatch | Reusable matchers with shared literal key | Non-matching branches | One property read + Map lookup |
-| Enhanced error messages | `.default('assert')` failures | - | Re-validation on error path only |
+| Enhanced error messages | `.default(match.throw)` failures | - | Re-validation on error path only |
 
 ## Supported ecosystems
 
@@ -506,11 +485,12 @@ Sync matcher builder:
 - `.case(schema, predicate, handler)` - schema + guard
 - `.case(schemaA, schemaB, ..., handler)` - multiple schemas, first match wins
 - `.when(predicate, handler)` - no schema, just a predicate
-- `.default(handler)` — fallback handler for unmatched inputs (`(input, {error})`)
-- `.defaultAsync(handler)` — async fallback handler (`(input, {error})`)
-- `.default('assert')` — throw `MatchError` if nothing matched
-- `.default('never')` — throw if nothing matched; type error if input doesn't extend case union
-- `.default('reject')` — return `MatchError` instead of throwing
+- `.default(handler)` — fallback handler for unmatched inputs (`({input, error})`)
+- `.defaultAsync(handler)` — async fallback handler (`({input, error})`)
+- `.default(match.throw)` — throw `MatchError` if nothing matched
+- `.defaultAsync(match.throw)` — async terminal that throws `MatchError` if nothing matched
+- `.default<never>(match.throw)` — throw if nothing matched; type error if input doesn't extend case union
+- `.default(({error}) => error)` — return `MatchError` instead of throwing
 
 Nothing is evaluated until you call a terminal (`.default(...)` or `.defaultAsync(...)`).
 
@@ -525,7 +505,7 @@ Static builder entrypoints that return reusable functions:
 - `.at(key)` - switch to discriminator-value cases (`.case(value, handler)`)
 - `match.case(...).case(...).default(...)` - build a reusable matcher function
 
-Reusable matchers are also valid Standard Schema V1 implementations. Before `.default()` is called, they expose a `'~standard'` property with `validate`, allowing them to be used as schemas in other matchers or any standard-schema consumer.
+Reusable matchers are also valid Standard Schema V1 implementations. Before `.default(...)` is called, they expose a `'~standard'` property with `validate`, allowing them to be used as schemas in other matchers or any standard-schema consumer.
 
 ### Narrowing unions
 
@@ -548,7 +528,7 @@ const getSessionId = match
   .at('type')
   .case('session.status', value => value.sessionId)
   .case('message.updated', value => value.properties.sessionId)
-  .default('assert')
+  .default(match.throw)
 ```
 
 `at().case()` checks `input[key] === value` and narrows the handler type. It does not run full branch schema validation.
@@ -575,7 +555,7 @@ const routeLead = match
   .input<Lead>()
   .case(z.object({email: z.string().email()}), (_parsed, input) => `email:${input.campaignId}`)
   .case(z.object({phone: z.string()}), (_parsed, input) => `sms:${input.country}`)
-  .default('assert')
+  .default(match.throw)
 ```
 
 ### `.defaultAsync(...)`
@@ -585,7 +565,7 @@ Use `.defaultAsync(...)` when any case schema, guard, or handler is async.
 ```typescript
 const result = await match(input)
   .case(AsyncSchema, async value => transform(value))
-  .defaultAsync(async (_input, {error}) => {
+  .defaultAsync(async ({error}) => {
     console.warn(error.message)
     return fallback
   })
@@ -603,7 +583,7 @@ const result = await fn(input)
 
 ### `MatchError`
 
-Thrown by `.default('assert')` / `.default('never')`, or returned by `.default('reject')`.
+Thrown by `.default(match.throw)` / `.default<never>(match.throw)`, or returned by `.default(({error}) => error)`.
 
 Implements `StandardSchemaV1.FailureResult`. The `.issues` array contains per-case validation details conforming to the standard-schema spec. Also exposes `.input`, `.schemas`, and `.discriminator` for programmatic access.
 
@@ -612,7 +592,7 @@ Implements `StandardSchemaV1.FailureResult`. The `.issues` array contains per-ca
 - First handler arg (`parsed`) is inferred from schema output type.
 - Second handler arg (`input`) is for input-oriented logic and narrows in common non-transforming union cases.
 - Return types are unioned across branches.
-- `.default('never')` constrains the reusable matcher's input to the union of case schema input types.
+- `.default<never>(match.throw)` constrains the reusable matcher's input to the union of case schema input types.
 - `StandardSchemaV1.InferInput<typeof matcher>` gives the case input union; `StandardSchemaV1.InferOutput<typeof matcher>` gives the handler return union.
 
 ## Other fun stuff
@@ -636,8 +616,8 @@ Use `schematch` when schema-driven validation is central and you want matching t
 ## Caveats
 
 - Use `.defaultAsync(...)` for async schema validation, guards, or handlers.
-- `.default('assert')` and `.default('never')` provide runtime exhaustiveness, not compile-time algebraic exhaustiveness. TypeScript cannot verify that your case schemas cover every member of a union at the type level.
-- `.when()` clauses don't contribute to `CaseInputs` for `.default('never')`. Use `.input<T>()` for full control when mixing `.when()` with input constraints.
+- `.default(match.throw)` and `.default<never>(match.throw)` provide runtime exhaustiveness, not compile-time algebraic exhaustiveness. TypeScript cannot verify that your case schemas cover every member of a union at the type level.
+- `.when()` clauses don't contribute to `CaseInputs` for `.default<never>(match.throw)`. Use `.input<T>()` for full control when mixing `.when()` with input constraints.
 
 ## Exports
 

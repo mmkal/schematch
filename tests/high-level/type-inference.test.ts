@@ -57,7 +57,7 @@ describe('high-level/type-inference', () => {
         expectTypeOf(input).toEqualTypeOf<{type: 'ok'; value: number}>()
         return parsed.value
       })
-      .default(input => {
+      .default(({input}) => {
         expectTypeOf(input).toEqualTypeOf<Input>()
         return -1
       })
@@ -103,7 +103,7 @@ describe('high-level/type-inference', () => {
         expectTypeOf(value).toEqualTypeOf<{type: 'message.updated'; properties: {sessionId: string}}>()
         return value.properties.sessionId
       })
-      .default('never')
+      .default<never>(match.throw)
 
     expectTypeOf(matcher).toEqualTypeOf<(input: Event) => string>()
   })
@@ -174,11 +174,11 @@ describe('high-level/type-inference', () => {
   })
 
   describe('.default modes', () => {
-    it('.default("assert") throws MatchError on no match', () => {
+    it('.default(match.throw) throws MatchError on no match', () => {
       const result = match(42)
         .case(z.string(), s => s.length)
         .case(z.number(), n => n + 1)
-        .default('assert')
+        .default(match.throw)
 
       expectTypeOf(result).toEqualTypeOf<number>()
       expect(result).toBe(43)
@@ -186,21 +186,21 @@ describe('high-level/type-inference', () => {
       expect(() =>
         match(true as unknown)
           .case(z.string(), () => 'str')
-          .default('assert')
+          .default(match.throw)
       ).toThrow(MatchError)
     })
 
-    it('.default("reject") returns MatchError instead of throwing', () => {
+    it('.default(({error}) => error) returns MatchError instead of throwing', () => {
       const result = match(42)
         .case(z.string(), s => s.length)
-        .default('reject')
+        .default(({error}) => error)
 
       expectTypeOf(result).toEqualTypeOf<number | MatchError>()
       expect(result).toBeInstanceOf(MatchError)
 
       const result2 = match('hello')
         .case(z.string(), s => s.length)
-        .default('reject')
+        .default(({error}) => error)
 
       expectTypeOf(result2).toEqualTypeOf<number | MatchError>()
       expect(result2).toBe(5)
@@ -209,43 +209,43 @@ describe('high-level/type-inference', () => {
     it('.default(handler) provides sync error context', () => {
       const result = match(42)
         .case(z.string(), s => s.length)
-        .default((input, context) => {
+        .default(({input, error}) => {
           expectTypeOf(input).toEqualTypeOf<42>()
-          expectTypeOf(context.error).toEqualTypeOf<MatchError>()
+          expectTypeOf(error).toEqualTypeOf<MatchError>()
           return -1
         })
 
       expectTypeOf(result).toEqualTypeOf<number>()
     })
 
-    it('.default<never>(handler) constrains reusable input like .default("never")', () => {
+    it('.default<never>(handler) constrains reusable input like .default<never>(match.throw)', () => {
       const matcher = match
         .case(z.string(), s => s.length)
         .case(z.number(), n => n + 1)
-        .default<never>((value, context) => {
-          expectTypeOf(value).toEqualTypeOf<never>()
-          expectTypeOf(context.error).toEqualTypeOf<MatchError>()
+        .default<never>(({input, error}) => {
+          expectTypeOf(input).toEqualTypeOf<never>()
+          expectTypeOf(error).toEqualTypeOf<MatchError>()
           return -1
         })
 
       expectTypeOf(matcher).toEqualTypeOf<(input: string | number) => number>()
     })
 
-    it('.default("never") constrains input type in inline mode', () => {
+    it('.default<never>(match.throw) constrains input type in inline mode', () => {
       // When input matches case union, 'never' is allowed
       const result = match(42 as number)
         .case(z.number(), n => n + 1)
-        .default('never')
+        .default<never>(match.throw)
 
       expectTypeOf(result).toEqualTypeOf<number>()
       expect(result).toBe(43)
     })
 
-    it('.default("never") constrains input type in reusable mode', () => {
+    it('.default<never>(match.throw) constrains input type in reusable mode', () => {
       const matcher = match
         .case(z.string(), s => s.length)
         .case(z.number(), n => n + 1)
-        .default('never')
+        .default<never>(match.throw)
 
       // Input type should be constrained to string | number
       expectTypeOf(matcher).toEqualTypeOf<(input: string | number) => number>()
@@ -254,11 +254,11 @@ describe('high-level/type-inference', () => {
       expect(matcher(42)).toBe(43)
     })
 
-    it('.default("assert") reusable accepts unknown input', () => {
+    it('.default(match.throw) reusable accepts unknown input', () => {
       const matcher = match
         .case(z.string(), s => s.length)
         .case(z.number(), n => n + 1)
-        .default('assert')
+        .default(match.throw)
 
       // Input type should be unknown
       expectTypeOf(matcher).toEqualTypeOf<(input: unknown) => number>()
@@ -268,10 +268,10 @@ describe('high-level/type-inference', () => {
       expect(() => matcher(true)).toThrow(MatchError)
     })
 
-    it('.default("reject") reusable returns error union', () => {
+    it('.default(({error}) => error) reusable returns error union', () => {
       const matcher = match
         .case(z.string(), s => s.length)
-        .default('reject')
+        .default(({error}) => error)
 
       expectTypeOf(matcher).toEqualTypeOf<(input: unknown) => number | MatchError>()
 
@@ -279,7 +279,7 @@ describe('high-level/type-inference', () => {
       expect(matcher(42)).toBeInstanceOf(MatchError)
     })
 
-    it('.defaultAsync("never") async reusable constrains input from schema input type', () => {
+    it('.defaultAsync<never>(match.throw) async reusable constrains input from schema input type', () => {
       // makeAsyncSchema returns StandardSchemaV1<unknown, number>, so InferInput is unknown
       const AsyncNumber = makeAsyncSchema<number>(
         (value): value is number => typeof value === 'number'
@@ -287,26 +287,26 @@ describe('high-level/type-inference', () => {
 
       const matcher = match
         .case(AsyncNumber, n => n + 1)
-        .defaultAsync('never')
+        .defaultAsync<never>(match.throw)
 
       // Since the schema input type is unknown, 'never' mode also accepts unknown
       expectTypeOf(matcher).toEqualTypeOf<(input: unknown) => Promise<number>>()
     })
 
-    it('.defaultAsync("never") async reusable constrains input with typed schemas', () => {
+    it('.defaultAsync<never>(match.throw) async reusable constrains input with typed schemas', () => {
       const matcher = match
         .case(z.string(), s => s.length)
         .case(z.number(), n => n + 1)
-        .defaultAsync('never')
+        .defaultAsync<never>(match.throw)
 
       // Zod schemas have typed inputs, so the constraint should be string | number
       expectTypeOf(matcher).toEqualTypeOf<(input: string | number) => Promise<number>>()
     })
 
-    it('.defaultAsync("reject") async inline resolves to error union', async () => {
+    it('.defaultAsync(({error}) => error) async inline resolves to error union', async () => {
       const result = await match(42)
         .case(z.string(), s => s.length)
-        .defaultAsync('reject')
+        .defaultAsync(({error}) => error)
 
       expectTypeOf(result).toEqualTypeOf<number | MatchError>()
       expect(result).toBeInstanceOf(MatchError)
@@ -315,22 +315,22 @@ describe('high-level/type-inference', () => {
     it('.defaultAsync(handler) provides async error context', () => {
       const result = match(42)
         .case(z.string(), s => s.length)
-        .defaultAsync(async (input, context) => {
+        .defaultAsync(async ({input, error}) => {
           expectTypeOf(input).toEqualTypeOf<42>()
-          expectTypeOf(context.error).toEqualTypeOf<MatchError>()
+          expectTypeOf(error).toEqualTypeOf<MatchError>()
           return -1
         })
 
       expectTypeOf(result).toEqualTypeOf<Promise<number>>()
     })
 
-    it('.defaultAsync<never>(handler) constrains reusable input like .defaultAsync("never")', () => {
+    it('.defaultAsync<never>(handler) constrains reusable input like .defaultAsync<never>(match.throw)', () => {
       const matcher = match
         .case(z.string(), s => s.length)
         .case(z.number(), n => n + 1)
-        .defaultAsync<never>(async (value, context) => {
-          expectTypeOf(value).toEqualTypeOf<never>()
-          expectTypeOf(context.error).toEqualTypeOf<MatchError>()
+        .defaultAsync<never>(async ({input, error}) => {
+          expectTypeOf(input).toEqualTypeOf<never>()
+          expectTypeOf(error).toEqualTypeOf<MatchError>()
           return -1
         })
 

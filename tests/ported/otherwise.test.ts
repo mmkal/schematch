@@ -9,7 +9,7 @@ describe('ported/otherwise', () => {
 
     const result = match(42)
       .case(Never, () => 0)
-      .default(value => value)
+      .default(({input}) => input)
 
     expect(result).toBe(42)
   })

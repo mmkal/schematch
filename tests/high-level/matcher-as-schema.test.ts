@@ -114,7 +114,7 @@ describe('matcher as StandardSchema', () => {
       expect(failResult.issues.length).toBeGreaterThan(0)
     })
 
-    it('.default() still works alongside ~standard', () => {
+    it('.default(match.throw) still works alongside ~standard', () => {
       const m = match
         .case(z.string(), s => s.length)
         .case(z.number(), n => n + 1)
@@ -123,8 +123,8 @@ describe('matcher as StandardSchema', () => {
       const schemaResult = m['~standard'].validate('hello')
       expect(schemaResult).toEqual({value: 5})
 
-      // Use as function via .default()
-      const fn = m.default('assert')
+      // Use as function via .default(match.throw)
+      const fn = m.default(match.throw)
       expect(fn('hello')).toBe(5)
       expect(fn(42)).toBe(43)
     })
@@ -169,7 +169,7 @@ describe('matcher as StandardSchema', () => {
     it('MatchError has .issues conforming to StandardSchemaV1.FailureResult', () => {
       const m = match
         .case(z.string(), s => s.length)
-        .default('reject')
+        .default(({error}) => error)
 
       const result = m(42)
       expect(result).toBeInstanceOf(MatchError)
@@ -181,9 +181,9 @@ describe('matcher as StandardSchema', () => {
       expect(err.issues[0]).toHaveProperty('message')
     })
 
-    it('MatchError from .default("assert") also has .issues', () => {
+    it('MatchError from .default(match.throw) also has .issues', () => {
       try {
-        match(42).case(z.string(), () => 'str').default('assert')
+        match(42).case(z.string(), () => 'str').default(match.throw)
         expect.unreachable('should throw')
       } catch (e) {
         expect(e).toBeInstanceOf(MatchError)

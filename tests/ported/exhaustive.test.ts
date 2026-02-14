@@ -10,7 +10,7 @@ describe('ported/exhaustive', () => {
     expect(() =>
       match(1)
         .case(Two, () => 'two')
-        .default('assert')
+        .default(match.throw)
     ).toThrow(MatchError)
   })
 })

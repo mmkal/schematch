@@ -58,52 +58,52 @@ const schematchZodResultInline = (result: Result) =>
     .case(ZodError, () => 'error')
     .case(ZodOkText, ({data}) => data.content)
     .case(ZodOkImg, ({data}) => data.src)
-    .default('assert')
+    .default(schematch.throw)
 
 const schematchValibotResultInline = (result: Result) =>
   schematch(result)
     .case(ValibotError, () => 'error')
     .case(ValibotOkText, ({data}) => data.content)
     .case(ValibotOkImg, ({data}) => data.src)
-    .default('assert')
+    .default(schematch.throw)
 
 const schematchZodMiniResultInline = (result: Result) =>
   schematch(result)
     .case(ZodMiniError, () => 'error')
     .case(ZodMiniOkText, ({data}) => data.content)
     .case(ZodMiniOkImg, ({data}) => data.src)
-    .default('assert')
+    .default(schematch.throw)
 
 const schematchZodResultReusable = schematch
   .case(ZodError, () => 'error')
   .case(ZodOkText, ({data}) => data.content)
   .case(ZodOkImg, ({data}) => data.src)
-  .default('assert')
+  .default(schematch.throw)
 
 const schematchValibotResultReusable = schematch
   .case(ValibotError, () => 'error')
   .case(ValibotOkText, ({data}) => data.content)
   .case(ValibotOkImg, ({data}) => data.src)
-  .default('assert')
+  .default(schematch.throw)
 
 const schematchZodMiniResultReusable = schematch
   .case(ZodMiniError, () => 'error')
   .case(ZodMiniOkText, ({data}) => data.content)
   .case(ZodMiniOkImg, ({data}) => data.src)
-  .default('assert')
+  .default(schematch.throw)
 
 const schematchArktypeResultInline = (result: Result) =>
   schematch(result)
     .case(ArkError, () => 'error')
     .case(ArkOkText, ({data}) => data.content)
     .case(ArkOkImg, ({data}) => data.src)
-    .default('assert')
+    .default(schematch.throw)
 
 const schematchArktypeResultReusable = schematch
   .case(ArkError, () => 'error')
   .case(ArkOkText, ({data}) => data.content)
   .case(ArkOkImg, ({data}) => data.src)
-  .default('assert')
+  .default(schematch.throw)
 
 const tsPatternResult = (result: Result) =>
   tsPatternMatch(result)
@@ -167,7 +167,7 @@ const reducerZodReusable = schematch
   .case(ZodLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
   .case(ZodNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
   .case(ZodLoadingCancel, () => ({status: 'idle'} as const))
-  .default(value => (value as [State, Event])[0])
+  .default(({input}) => (input as [State, Event])[0])
 
 const reducerArktypeInline = (state: State, event: Event): State =>
   schematch<[State, Event]>([state, event])
@@ -182,7 +182,7 @@ const reducerArktypeReusable = schematch
   .case(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
   .case(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
   .case(ArkLoadingCancel, () => ({status: 'idle'} as const))
-  .default(value => (value as [State, Event])[0])
+  .default(({input}) => (input as [State, Event])[0])
 
 const reducerTsPattern = (state: State, event: Event): State =>
   tsPatternMatch<[State, Event]>([state, event])

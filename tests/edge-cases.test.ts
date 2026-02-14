@@ -387,7 +387,7 @@ describe('edge cases', () => {
       try {
         match({type: 'unknown'})
           .case(OkSchema, () => 'ok')
-          .default('assert')
+          .default(match.throw)
         expect.unreachable('should have thrown')
       } catch (e) {
         expect(e).toBeInstanceOf(MatchError)
@@ -405,7 +405,7 @@ describe('edge cases', () => {
       const m = match
         .case(OkSchema, () => 'ok')
         .case(ErrSchema, () => 'err')
-        .default('assert')
+        .default(match.throw)
 
       try {
         m({type: 'unknown'})
@@ -435,7 +435,7 @@ describe('edge cases', () => {
       const m = match
         .case(OkSchema, () => 'ok')
         .case(ErrSchema, () => 'err')
-        .default('assert')
+        .default(match.throw)
 
       // Discriminator 'type' is 'ok' so it matches first branch,
       // but 'value' is wrong type — the error should show that branch's issues
@@ -461,7 +461,7 @@ describe('edge cases', () => {
         match(true as unknown)
           .case(StringSchema, () => 'string')
           .case(NumberSchema, () => 'number')
-          .default('assert')
+          .default(match.throw)
         expect.unreachable('should have thrown')
       } catch (e) {
         expect(e).toBeInstanceOf(MatchError)
@@ -506,7 +506,7 @@ describe('edge cases', () => {
       validations = 0
       const withError = match
         .case(CountingSchema, value => value)
-        .default((_input, context) => {
+        .default(context => {
           const first = context.error
           const second = context.error
           expect(first).toBe(second)

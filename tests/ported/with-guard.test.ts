@@ -10,7 +10,7 @@ describe('ported/with-guard', () => {
     const result = match(12)
       .case(Number, value => value > 10, () => 'big')
       .case(Number, () => 'small')
-      .default('assert')
+      .default(match.throw)
 
     expect(result).toBe('big')
   })
@@ -19,7 +19,7 @@ describe('ported/with-guard', () => {
     const result = match(4)
       .case(Number, value => value > 10, () => 'big')
       .case(Number, () => 'small')
-      .default('assert')
+      .default(match.throw)
 
     expect(result).toBe('small')
   })

@@ -58,28 +58,28 @@ const schematchZodResult = (result: Result) =>
     .case(ZodError, () => 'error')
     .case(ZodOkText, ({data}) => data.content)
     .case(ZodOkImg, ({data}) => data.src)
-    .default('assert')
+    .default(schematch.throw)
 
 const schematchValibotResult = (result: Result) =>
   schematch(result)
     .case(ValibotError, () => 'error')
     .case(ValibotOkText, ({data}) => data.content)
     .case(ValibotOkImg, ({data}) => data.src)
-    .default('assert')
+    .default(schematch.throw)
 
 const schematchZodMiniResult = (result: Result) =>
   schematch(result)
     .case(ZodMiniError, () => 'error')
     .case(ZodMiniOkText, ({data}) => data.content)
     .case(ZodMiniOkImg, ({data}) => data.src)
-    .default('assert')
+    .default(schematch.throw)
 
 const schematchArktypeResult = (result: Result) =>
   schematch(result)
     .case(ArkError, () => 'error')
     .case(ArkOkText, ({data}) => data.content)
     .case(ArkOkImg, ({data}) => data.src)
-    .default('assert')
+    .default(schematch.throw)
 
 const tsPatternResult = (result: Result) =>
   tsPatternMatch(result)

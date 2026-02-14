@@ -49,36 +49,18 @@ describe('high-level/basic-usage', () => {
       .case(type({msg: 'string'}), obj => obj.msg)
       .default(() => 'unexpected')
 
-    // type exhaustiveness via .default('never'):
+    // type exhaustiveness via .default<never>(match.throw):
     // const myMatcher2 = match
     //   .case(z.string(), s => `hello ${s.substring(1, 3)}`)
     //   .case(v.array(v.number()), arr => `got ${arr.length} numbers`)
     //   .case(type({msg: 'string'}), obj => obj.msg)
-    //   .default('never')
+    //   .default<never>(match.throw)
     // => (input: string | number[] | {msg: string}) => string
 
     expect(myMatcher('hello')).toBe('hello el')
     expect(myMatcher([1, 2, 3])).toBe('got 3 numbers')
     expect(myMatcher({msg: 'yo'})).toBe('yo')
     expect(myMatcher(42)).toBe('unexpected')
-  })
-
-  it('xyz', () => {
-    type OpencodeEvent =
-      | {type: 'session.status'; sessionId: string}
-      | {type: 'message.updated'; properties: {sessionId: string}}
-
-    match
-      .input<OpencodeEvent>()
-      // @ts-expect-error parsed arg is schema output, not full union member
-      .case(z.object({type: z.literal('session.status')}), (value) => value.sessionId)
-      // @ts-expect-error parsed arg is schema output, not full union member
-      .case(z.object({type: z.literal('message.updated')}), (value) => value.properties.sessionId)
-    const input = JSON.parse(`{"type": "session.status", "session_id": "abc"}`)
-
-    tspmatch<OpencodeEvent>(input)
-      .with({type: 'session.status'}, ({sessionId}) => sessionId)
-      .with({type: 'message.updated'}, ({properties}) => properties.sessionId)
   })
 
   it('passes matched value first and narrowed input second', () => {
@@ -96,7 +78,7 @@ describe('high-level/basic-usage', () => {
         expect(parsed.type).toBe('message.updated')
         return input.properties.sessionId
       })
-      .default('assert')
+      .default(match.throw)
 
     expect(getSessionId({type: 'session.status', sessionId: 'abc'})).toBe('abc')
     expect(getSessionId({type: 'message.updated', properties: {sessionId: 'xyz'}})).toBe('xyz')
@@ -112,7 +94,7 @@ describe('high-level/basic-usage', () => {
       .at('type')
       .case('session.status', value => value.sessionId)
       .case('message.updated', value => value.properties.sessionId)
-      .default('assert')
+      .default(match.throw)
 
     expect(getSessionId({type: 'session.status', sessionId: 'abc'})).toBe('abc')
     expect(getSessionId({type: 'message.updated', properties: {sessionId: 'xyz'}})).toBe('xyz')

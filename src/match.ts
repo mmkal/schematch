@@ -57,11 +57,8 @@ type AtCaseValues<input, key extends PropertyKey> =
 
 type AtCaseInput<input, key extends PropertyKey, value> = Extract<input, Record<key, value>>
 
-type DefaultContext = {
-  readonly error: MatchError
-}
-
-type DefaultAsyncContext = {
+type DefaultContext<input> = {
+  readonly input: input
   readonly error: MatchError
 }
 
@@ -82,6 +79,19 @@ type WithAsyncReturn<current, next> = current extends Unset ? Awaited<next> : cu
 
 type MatchFactory = {
   <const input, output = Unset>(value: input): MatchExpression<input, output>
+  /**
+   * Convenience fallback for `.default(...)` and `.defaultAsync(...)` that simply
+   * rethrows the lazily constructed `MatchError`.
+   *
+   * Full implementation:
+   *
+   * ```ts
+   * ({error}) => {
+   *   throw error
+   * }
+   * ```
+   */
+  throw: (context: {error: MatchError}) => never
   input<input>(): ReusableMatcher<input, Unset>
   output<output>(): ReusableMatcher<unknown, output>
   case<input, schema extends StandardSchemaV1, result>(
@@ -103,6 +113,9 @@ export const match = Object.assign(
     return new MatchExpression(value) as MatchExpression<input, output>
   },
   {
+    throw({error}: {error: MatchError}) {
+      throw error
+    },
     input() {
       return new ReusableMatcher<unknown, Unset>(unmatched as MatchState<Unset>)
     },
@@ -168,42 +181,26 @@ class MatchExpression<input, output, CaseInputs = never> {
   }
 
   /**
-   * Terminates the match expression with a default behavior when no case matches.
+   * Terminates the match expression.
    *
-   * @overload `.default('assert')` — Throws a {@link MatchError} if no case matched. Accepts any input.
-   * @overload `.default('never')` — Throws a {@link MatchError} if no case matched. Produces a type error if the input doesn't match the union of case input types.
-   * @overload `.default('reject')` — Returns a {@link MatchError} instance (instead of throwing) if no case matched. Accepts any input.
-   * @overload `.default(handler)` — Calls the handler with the input value if no case matched.
+   * - `.default(match.throw)` throws `MatchError` on no match.
+   * - `.default(handler)` calls the fallback handler on no match.
+   * - `.default<never>(...)` constrains fallback input to matched case inputs.
    */
-  default(
-    /** Throw a {@link MatchError} if no case matched. Accepts any input type. */
-    mode: 'assert'
-  ): output
-  default(
-    /**
-     * Throw a {@link MatchError} if no case matched.
-     * Constrains the input type to the union of all case schema input types —
-     * produces a compile-time error if the match input doesn't extend that union.
-     */
-    mode: input extends CaseInputs ? 'never' : never
-  ): output
-  default(
-    /** Return a {@link MatchError} instance (instead of throwing) if no case matched. */
-    mode: 'reject'
-  ): output | MatchError
   default<
     unmatched = input,
-    handler extends (value: unmatched, context: DefaultContext) => unknown = (value: unmatched, context: DefaultContext) => unknown
+    handler extends (context: DefaultContext<unmatched>) => unknown = (context: DefaultContext<unmatched>) => unknown
   >(
-    /** A fallback handler called with the raw input and lazy match error when no case matched. */
     handler: handler
-  ): [unmatched] extends [never] ? output : WithReturn<output, ReturnType<handler>>
-  default(modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input, context: DefaultContext) => unknown)): unknown {
+  ): [unmatched] extends [never]
+    ? (input extends CaseInputs ? output : never)
+    : WithReturn<output, ReturnType<handler>>
+  default(handler: ((context: DefaultContext<input>) => unknown)): unknown {
     const matcher = new ReusableMatcher<input, output, CaseInputs>(
       unmatched as MatchState<output>,
       this.clauses as Array<ReusableClause<input> | ReusableWhenClause<input>>
     )
-    const run = matcher.default(modeOrHandler as any) as (input: input) => unknown
+    const run = matcher.default(handler as any) as (input: input) => unknown
     return run(this.input)
   }
 
@@ -212,30 +209,25 @@ class MatchExpression<input, output, CaseInputs = never> {
    *
    * Build clauses with `.case()` / `.when()`, then execute once with `.defaultAsync(...)`.
    */
-  defaultAsync(
-    mode: 'assert'
-  ): Promise<Awaited<output>>
-  defaultAsync(
-    mode: input extends CaseInputs ? 'never' : never
-  ): Promise<Awaited<output>>
-  defaultAsync(
-    mode: 'reject'
-  ): Promise<Awaited<output> | MatchError>
   defaultAsync<
     unmatched = input,
-    handler extends (value: unmatched, context: DefaultAsyncContext) => unknown | Promise<unknown> =
-      (value: unmatched, context: DefaultAsyncContext) => unknown | Promise<unknown>
+    handler extends (context: DefaultContext<unmatched>) => unknown | Promise<unknown> =
+      (context: DefaultContext<unmatched>) => unknown | Promise<unknown>
   >(
     handler: handler
-  ): Promise<[unmatched] extends [never] ? Awaited<output> : WithAsyncReturn<output, ReturnType<handler>>>
+  ): Promise<
+    [unmatched] extends [never]
+      ? (input extends CaseInputs ? Awaited<output> : never)
+      : WithAsyncReturn<output, ReturnType<handler>>
+  >
   defaultAsync(
-    modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input, context: DefaultAsyncContext) => unknown | Promise<unknown>)
+    handler: ((context: DefaultContext<input>) => unknown | Promise<unknown>)
   ): Promise<unknown> {
     const matcher = new ReusableMatcher<input, output, CaseInputs>(
       unmatched as MatchState<output>,
       this.clauses as Array<ReusableClause<input> | ReusableWhenClause<input>>
     )
-    const run = matcher.defaultAsync(modeOrHandler as any) as (input: input) => Promise<unknown>
+    const run = matcher.defaultAsync(handler as any) as (input: input) => Promise<unknown>
     return run(this.input)
   }
 
@@ -452,66 +444,34 @@ class ReusableMatcher<input, output, CaseInputs = never> {
   /**
    * Terminates the reusable matcher and returns a function that executes the match.
    *
-   * @overload `.default('assert')` — Returns a function that throws {@link MatchError} on no match. Accepts `unknown` input.
-   * @overload `.default('never')` — Returns a function that throws {@link MatchError} on no match. Input type is constrained to the union of case schema input types.
-   * @overload `.default('reject')` — Returns a function whose return type includes {@link MatchError} (returned, not thrown) on no match.
-   * @overload `.default(handler)` — Returns a function that calls the handler on no match.
+   * - `.default(match.throw)` throws `MatchError` when no case matches.
+   * - `.default(handler)` runs fallback logic with `{input, error}`.
+   * - `.default<never>(...)` constrains input like previous "never" mode.
    */
-  default(
-    /** Throw a {@link MatchError} if no case matched. Accepts any input type. */
-    mode: 'assert'
-  ): (input: input) => output
-  default(
-    /**
-     * Throw a {@link MatchError} if no case matched.
-     * The returned function's input type is constrained to the union of all case schema input types.
-     */
-    mode: 'never'
-  ): (input: CaseInputs) => output
-  default(
-    /** Return a {@link MatchError} instance (instead of throwing) if no case matched. */
-    mode: 'reject'
-  ): (input: input) => output | MatchError
   default<
     unmatched = input,
-    handler extends (value: unmatched, context: DefaultContext) => unknown = (value: unmatched, context: DefaultContext) => unknown
+    handler extends (context: DefaultContext<unmatched>) => unknown = (context: DefaultContext<unmatched>) => unknown
   >(
-    /** A fallback handler called with the raw input and lazy match error when no case matched. */
     handler: handler
   ): (input: [unmatched] extends [never] ? CaseInputs : input) => ([unmatched] extends [never] ? output : WithReturn<output, ReturnType<handler>>)
-  default(modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input, context: DefaultContext) => unknown)): (input: any) => unknown {
+  default(handler: ((context: DefaultContext<input>) => unknown)): (input: any) => unknown {
     const allSchemas = this.clauses.flatMap(c => 'schemas' in c ? c.schemas : [])
 
-    if (typeof modeOrHandler === 'function') {
-      return (input: input) => {
-        const state = this.exec(input)
-        if (state.matched) return state.value
-        let error: MatchError | undefined
-        const buildError = () => this.buildMatchError(input, allSchemas)
-        const context: DefaultContext = {
-          get error() {
-            if (!error) error = buildError()
-            return error
-          },
-        }
-        return modeOrHandler(input, context)
-      }
-    }
-
-    if (modeOrHandler === 'reject') {
-      return (input: input) => {
-        const state = this.exec(input)
-        if (state.matched) return state.value
-        return this.buildMatchError(input, allSchemas)
-      }
-    }
-
-    modeOrHandler satisfies 'assert' | 'never';
-    // 'assert' and 'never' both throw at runtime
     return (input: input) => {
       const state = this.exec(input)
       if (state.matched) return state.value
-      throw this.buildMatchError(input, allSchemas)
+      let error: MatchError | undefined
+      const buildError = () => this.buildMatchError(input, allSchemas)
+      const context: DefaultContext<input> = {
+        get input() {
+          return input
+        },
+        get error() {
+          if (!error) error = buildError()
+          return error
+        },
+      }
+      return handler(context)
     }
   }
 
@@ -520,57 +480,33 @@ class ReusableMatcher<input, output, CaseInputs = never> {
    *
    * Build clauses with `.case()` / `.when()`, then execute with `.defaultAsync(...)`.
    */
-  defaultAsync(
-    mode: 'assert'
-  ): (input: input) => Promise<Awaited<output>>
-  defaultAsync(
-    mode: 'never'
-  ): (input: CaseInputs) => Promise<Awaited<output>>
-  defaultAsync(
-    mode: 'reject'
-  ): (input: input) => Promise<Awaited<output> | MatchError>
   defaultAsync<
     unmatched = input,
-    handler extends (value: unmatched, context: DefaultAsyncContext) => unknown | Promise<unknown> =
-      (value: unmatched, context: DefaultAsyncContext) => unknown | Promise<unknown>
+    handler extends (context: DefaultContext<unmatched>) => unknown | Promise<unknown> =
+      (context: DefaultContext<unmatched>) => unknown | Promise<unknown>
   >(
     handler: handler
   ): (input: [unmatched] extends [never] ? CaseInputs : input) => Promise<[unmatched] extends [never] ? Awaited<output> : WithAsyncReturn<output, ReturnType<handler>>>
   defaultAsync(
-    modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input, context: DefaultAsyncContext) => unknown | Promise<unknown>)
+    handler: ((context: DefaultContext<input>) => unknown | Promise<unknown>)
   ): (input: any) => Promise<unknown> {
     const allSchemas = this.clauses.flatMap(c => 'schemas' in c ? c.schemas : [])
 
-    if (typeof modeOrHandler === 'function') {
-      return async (input: input) => {
-        const state = await this.execAsync(input)
-        if (state.matched) return state.value
-        let error: MatchError | undefined
-        const buildError = () => this.buildMatchError(input, allSchemas)
-        const context: DefaultAsyncContext = {
-          get error() {
-            if (!error) error = buildError()
-            return error
-          },
-        }
-        return await modeOrHandler(input, context)
-      }
-    }
-
-    if (modeOrHandler === 'reject') {
-      return async (input: input) => {
-        const state = await this.execAsync(input)
-        if (state.matched) return state.value
-        return this.buildMatchError(input, allSchemas)
-      }
-    }
-
-    modeOrHandler satisfies 'assert' | 'never';
-    // 'assert' and 'never' both throw at runtime
     return async (input: input) => {
       const state = await this.execAsync(input)
       if (state.matched) return state.value
-      throw this.buildMatchError(input, allSchemas)
+      let error: MatchError | undefined
+      const buildError = () => this.buildMatchError(input, allSchemas)
+      const context: DefaultContext<input> = {
+        get input() {
+          return input
+        },
+        get error() {
+          if (!error) error = buildError()
+          return error
+        },
+      }
+      return await handler(context)
     }
   }
 
@@ -771,44 +707,26 @@ class ReusableMatcherAt<input, output, CaseInputs = never, key extends PropertyK
     return new ReusableMatcherAt(this.matcher.output<O>(), this.key) as any
   }
 
-  default(
-    mode: 'assert'
-  ): (input: input) => output
-  default(
-    mode: 'never'
-  ): (input: CaseInputs) => output
-  default(
-    mode: 'reject'
-  ): (input: input) => output | MatchError
   default<
     unmatched = input,
-    handler extends (value: unmatched, context: DefaultContext) => unknown = (value: unmatched, context: DefaultContext) => unknown
+    handler extends (context: DefaultContext<unmatched>) => unknown = (context: DefaultContext<unmatched>) => unknown
   >(
     handler: handler
   ): (input: [unmatched] extends [never] ? CaseInputs : input) => ([unmatched] extends [never] ? output : WithReturn<output, ReturnType<handler>>)
-  default(modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input, context: DefaultContext) => unknown)): (input: any) => unknown {
-    return this.matcher.default(modeOrHandler as any) as any
+  default(handler: ((context: DefaultContext<input>) => unknown)): (input: any) => unknown {
+    return this.matcher.default(handler as any) as any
   }
 
-  defaultAsync(
-    mode: 'assert'
-  ): (input: input) => Promise<Awaited<output>>
-  defaultAsync(
-    mode: 'never'
-  ): (input: CaseInputs) => Promise<Awaited<output>>
-  defaultAsync(
-    mode: 'reject'
-  ): (input: input) => Promise<Awaited<output> | MatchError>
   defaultAsync<
     unmatched = input,
-    handler extends (value: unmatched, context: DefaultAsyncContext) => unknown | Promise<unknown> =
-      (value: unmatched, context: DefaultAsyncContext) => unknown | Promise<unknown>
+    handler extends (context: DefaultContext<unmatched>) => unknown | Promise<unknown> =
+      (context: DefaultContext<unmatched>) => unknown | Promise<unknown>
   >(
     handler: handler
   ): (input: [unmatched] extends [never] ? CaseInputs : input) => Promise<[unmatched] extends [never] ? Awaited<output> : WithAsyncReturn<output, ReturnType<handler>>>
   defaultAsync(
-    modeOrHandler: 'assert' | 'never' | 'reject' | ((value: input, context: DefaultAsyncContext) => unknown | Promise<unknown>)
+    handler: ((context: DefaultContext<input>) => unknown | Promise<unknown>)
   ): (input: any) => Promise<unknown> {
-    return this.matcher.defaultAsync(modeOrHandler as any) as any
+    return this.matcher.defaultAsync(handler as any) as any
   }
 }

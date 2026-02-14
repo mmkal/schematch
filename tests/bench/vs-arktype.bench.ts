@@ -26,13 +26,13 @@ const schematchArktypePrimitive = schematch
   .case(ArkStringOrPrimitive, v => v)
   .case(ArkBigint, (b: bigint) => `${b}n`)
   .case(ArkObject, (o: object) => JSON.stringify(o))
-  .default('assert')
+  .default(schematch.throw)
 
 const schematchZodPrimitive = schematch
   .case(ZodStringOrPrimitive, v => v)
   .case(ZodBigint, (b: bigint) => `${b}n`)
   .case(ZodObject, (o: object) => JSON.stringify(o))
-  .default('assert')
+  .default(schematch.throw)
 
 const tsPatternPrimitive = (value: unknown) =>
   tsPatternMatch(value)
@@ -66,13 +66,13 @@ const schematchArktypeResultInline = (result: Result) =>
     .case(ArkError, () => 'error')
     .case(ArkOkText, ({data}) => data.content)
     .case(ArkOkImg, ({data}) => data.src)
-    .default('assert')
+    .default(schematch.throw)
 
 const schematchArktypeResultReusable = schematch
   .case(ArkError, () => 'error')
   .case(ArkOkText, ({data}) => data.content)
   .case(ArkOkImg, ({data}) => data.src)
-  .default('assert')
+  .default(schematch.throw)
 
 // arktype .case() with pre-built type references (avoids re-parsing definitions)
 const arktypeNativeResultCase = arktypeMatch
@@ -132,7 +132,7 @@ const reducerSchematchReusable = schematch
   .case(ArkLoadingError, ([, e]) => ({status: 'error', error: e.error} as const))
   .case(ArkNotLoadingFetch, () => ({status: 'loading', startTime: Date.now()} as const))
   .case(ArkLoadingCancel, () => ({status: 'idle'} as const))
-  .default(value => (value as [State, Event])[0])
+  .default(({input}) => (input as [State, Event])[0])
 
 // arktype .case() with pre-built type references
 const reducerArktypeNativeCase = arktypeMatch
