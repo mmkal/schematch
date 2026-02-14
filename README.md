@@ -21,18 +21,6 @@ const output = match(input)
   .default(() => 'unexpected')
 ```
 
-You can get a useful and pretty error message in the `.default` callback's second argument:
-
-```typescript
-const output = match(input)
-  .case(z.string(), s => `hello ${s.slice(1, 3)}`)
-  .case(z.array(z.number()), arr => `got ${arr.length} numbers`)
-  .default(({error}) => {
-    console.warn(error.message) // "Schema matching error: no schema matches input (...)\n  Case 1: ...\n  Case 2: ..."
-    return 'unexpected'
-  })
-```
-
 ## Reusable matcher builders
 
 You can prebuild a matcher once into a function, and reuse it across many inputs:
@@ -53,6 +41,18 @@ myMatcher({msg: 'yo'})
 ```
 
 This avoids rebuilding the fluent chain for hot paths.
+
+You can get a useful and pretty error message in the `.default` callback's second argument:
+
+```typescript
+const output = match(input)
+  .case(z.string(), s => `hello ${s.slice(1, 3)}`)
+  .case(z.array(z.number()), arr => `got ${arr.length} numbers`)
+  .default(({error}) => {
+    console.warn(error.message) // "Schema matching error: no schema matches input (...)\n  Case 1: ...\n  Case 2: ..."
+    return 'unexpected'
+  })
+```
 
 You can constrain reusable matcher input types up front:
 
@@ -135,21 +135,6 @@ fn(42)      // 43
 fn(true)    // compile-time type error
 ```
 
-You can do whatever you like in a handler, for example logging errors to stderr:
-
-```typescript
-const fn = match
-  .case(z.string(), s => s.length)
-  .case(z.number(), n => n + 1)
-  .default<never>(({input, error}) => {
-    input satisfies never
-    console.warn(error.message)
-    return -1
-  })
-
-// fn has type: (input: string | number) => number
-```
-
 For inline matchers, `<never>` produces a compile-time error if the input value doesn't extend the case union:
 
 ```typescript
@@ -180,8 +165,6 @@ if (result instanceof MatchError) {
 ```
 
 ## Matchers as Standard Schemas
-
-> "wow! *another* valid standard-schema is produced from schemas composed via schematch!" - Winston Churchill
 
 Reusable matchers (built with `match.case(...)`) are valid [Standard Schema V1](https://standardschema.dev) implementations. They expose a `'~standard'` property with `version: 1`, `vendor: 'schematch'`, and a `validate` function.
 
