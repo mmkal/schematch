@@ -228,7 +228,7 @@ For async schemas/guards/handlers, use `.defaultAsync(...)` to execute the same 
 
 ## Performance
 
-`schematch` if fast. It includes compiled matcher caching and library-specific fast paths (literals, object/tuple/union/discriminator prechecks). Reusable matchers avoid rebuilding the fluent chain entirely, giving an additional speedup on hot paths.
+`schematch` is fast. It includes compiled matcher caching and library-specific fast paths (literals, object/tuple/union/discriminator prechecks). Reusable matchers avoid rebuilding the fluent chain entirely, giving an additional speedup on hot paths.
 
 Results from a representative run (ops/sec, higher is better):
 
