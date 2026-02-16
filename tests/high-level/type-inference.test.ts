@@ -369,4 +369,19 @@ describe('high-level/type-inference', () => {
     })
 
   })
+
+  it('inference works with .default', () => {
+    expectTypeOf(
+      match
+        .case(z.string(), s => s.length)
+        .default<string | number>(() => -1)
+    ).returns.toBeNumber()
+
+    expectTypeOf(
+      match
+        .output<number>()
+        .case(z.string(), s => s.length)
+        .default<string | number>(() => -1)
+    ).returns.toBeNumber()
+  })
 })

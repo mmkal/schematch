@@ -77,6 +77,20 @@ type Unset = typeof unset
 type WithReturn<current, next> = current extends Unset ? next : current | next
 type WithAsyncReturn<current, next> = current extends Unset ? Awaited<next> : current | Awaited<next>
 
+type DefaultReturn<
+  unmatched,
+  handler extends (context: DefaultContext<unmatched>) => unknown,
+> = StrictEqual<handler, (context: DefaultContext<unmatched>) => unknown> extends true
+  ? never
+  : ReturnType<handler>
+
+type DefaultAsyncReturn<
+  unmatched,
+  handler extends (context: DefaultContext<unmatched>) => unknown | Promise<unknown>,
+> = StrictEqual<handler, (context: DefaultContext<unmatched>) => unknown | Promise<unknown>> extends true
+  ? never
+  : ReturnType<handler>
+
 type MatchFactory = {
   <const input, output = Unset>(value: input): MatchExpression<input, output>
   /**
@@ -194,7 +208,7 @@ class MatchExpression<input, output, CaseInputs = never> {
     handler: handler
   ): [unmatched] extends [never]
     ? (input extends CaseInputs ? output : never)
-    : WithReturn<output, ReturnType<handler>>
+    : WithReturn<output, DefaultReturn<unmatched, handler>>
   default(handler: ((context: DefaultContext<input>) => unknown)): unknown {
     const matcher = new ReusableMatcher<input, output, CaseInputs>(
       unmatched as MatchState<output>,
@@ -218,7 +232,7 @@ class MatchExpression<input, output, CaseInputs = never> {
   ): Promise<
     [unmatched] extends [never]
       ? (input extends CaseInputs ? Awaited<output> : never)
-      : WithAsyncReturn<output, ReturnType<handler>>
+      : WithAsyncReturn<output, DefaultAsyncReturn<unmatched, handler>>
   >
   defaultAsync(
     handler: ((context: DefaultContext<input>) => unknown | Promise<unknown>)
@@ -453,7 +467,8 @@ class ReusableMatcher<input, output, CaseInputs = never> {
     handler extends (context: DefaultContext<unmatched>) => unknown = (context: DefaultContext<unmatched>) => unknown
   >(
     handler: handler
-  ): (input: [unmatched] extends [never] ? CaseInputs : input) => ([unmatched] extends [never] ? output : WithReturn<output, ReturnType<handler>>)
+  ): (input: [unmatched] extends [never] ? CaseInputs : input) =>
+    ([unmatched] extends [never] ? output : WithReturn<output, DefaultReturn<unmatched, handler>>)
   default(handler: ((context: DefaultContext<input>) => unknown)): (input: any) => unknown {
     const allSchemas = this.clauses.flatMap(c => 'schemas' in c ? c.schemas : [])
 
@@ -486,7 +501,11 @@ class ReusableMatcher<input, output, CaseInputs = never> {
       (context: DefaultContext<unmatched>) => unknown | Promise<unknown>
   >(
     handler: handler
-  ): (input: [unmatched] extends [never] ? CaseInputs : input) => Promise<[unmatched] extends [never] ? Awaited<output> : WithAsyncReturn<output, ReturnType<handler>>>
+  ): (input: [unmatched] extends [never] ? CaseInputs : input) => Promise<
+    [unmatched] extends [never]
+      ? Awaited<output>
+      : WithAsyncReturn<output, DefaultAsyncReturn<unmatched, handler>>
+  >
   defaultAsync(
     handler: ((context: DefaultContext<input>) => unknown | Promise<unknown>)
   ): (input: any) => Promise<unknown> {
@@ -712,7 +731,8 @@ class ReusableMatcherAt<input, output, CaseInputs = never, key extends PropertyK
     handler extends (context: DefaultContext<unmatched>) => unknown = (context: DefaultContext<unmatched>) => unknown
   >(
     handler: handler
-  ): (input: [unmatched] extends [never] ? CaseInputs : input) => ([unmatched] extends [never] ? output : WithReturn<output, ReturnType<handler>>)
+  ): (input: [unmatched] extends [never] ? CaseInputs : input) =>
+    ([unmatched] extends [never] ? output : WithReturn<output, DefaultReturn<unmatched, handler>>)
   default(handler: ((context: DefaultContext<input>) => unknown)): (input: any) => unknown {
     return this.matcher.default(handler as any) as any
   }
@@ -723,7 +743,11 @@ class ReusableMatcherAt<input, output, CaseInputs = never, key extends PropertyK
       (context: DefaultContext<unmatched>) => unknown | Promise<unknown>
   >(
     handler: handler
-  ): (input: [unmatched] extends [never] ? CaseInputs : input) => Promise<[unmatched] extends [never] ? Awaited<output> : WithAsyncReturn<output, ReturnType<handler>>>
+  ): (input: [unmatched] extends [never] ? CaseInputs : input) => Promise<
+    [unmatched] extends [never]
+      ? Awaited<output>
+      : WithAsyncReturn<output, DefaultAsyncReturn<unmatched, handler>>
+  >
   defaultAsync(
     handler: ((context: DefaultContext<input>) => unknown | Promise<unknown>)
   ): (input: any) => Promise<unknown> {
