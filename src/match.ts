@@ -62,6 +62,16 @@ type DefaultContext<input> = {
   readonly error: MatchError
 }
 
+type SchemaCaseInput<schema extends StandardSchemaV1> =
+  InferOutput<schema> extends InferInput<schema>
+    ? InferOutput<schema>
+    : InferInput<schema>
+
+type Overlap<input, schema extends StandardSchemaV1> = input & SchemaCaseInput<schema>
+type EnsureSchemaOverlap<input, schema extends StandardSchemaV1> =
+  [Overlap<input, schema>] extends [never] ? never : schema
+type RemainingInput<input, CaseInputs> = Exclude<input, CaseInputs>
+
 type MatchState<output> =
   | {matched: true; value: output}
   | {matched: false; value: undefined}
@@ -108,18 +118,18 @@ type MatchFactory = {
   throw: (context: {error: MatchError}) => never
   input<input>(): ReusableMatcher<input, Unset>
   output<output>(): ReusableMatcher<unknown, output>
-  case<input, schema extends StandardSchemaV1, result>(
-    schema: schema,
+  case<input, const schema extends StandardSchemaV1, result>(
+    schema: EnsureSchemaOverlap<input, schema>,
     handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
-  ): ReusableMatcher<input, WithReturn<Unset, result>, InferInput<schema>>
-  case<input, schema extends StandardSchemaV1, result>(
-    schema: schema,
+  ): ReusableMatcher<input, WithReturn<Unset, result>, SchemaCaseInput<schema>>
+  case<input, const schema extends StandardSchemaV1, result>(
+    schema: EnsureSchemaOverlap<input, schema>,
     predicate: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => unknown,
     handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
-  ): ReusableMatcher<input, WithReturn<Unset, result>, InferInput<schema>>
+  ): ReusableMatcher<input, WithReturn<Unset, result>, SchemaCaseInput<schema>>
   case<input, schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
     ...args: [...schemas, (parsed: InferOutput<schemas[number]>, input: input) => result]
-  ): ReusableMatcher<input, WithReturn<Unset, result>, InferInput<schemas[number]>>
+  ): ReusableMatcher<input, WithReturn<Unset, result>, SchemaCaseInput<schemas[number]>>
 }
 
 export const match = Object.assign(
@@ -161,18 +171,18 @@ class MatchExpression<input, output, CaseInputs = never> {
     private readonly clauses: Array<MatchClause<input> | MatchWhenClause<input>> = []
   ) {}
 
-  case<schema extends StandardSchemaV1, result>(
-    schema: schema,
+  case<const schema extends StandardSchemaV1, result>(
+    schema: EnsureSchemaOverlap<input, schema>,
     handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
-  ): MatchExpression<input, WithReturn<output, result>, CaseInputs | InferInput<schema>>
-  case<schema extends StandardSchemaV1, result>(
-    schema: schema,
+  ): MatchExpression<input, WithReturn<output, result>, CaseInputs | SchemaCaseInput<schema>>
+  case<const schema extends StandardSchemaV1, result>(
+    schema: EnsureSchemaOverlap<input, schema>,
     predicate: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => unknown,
     handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
-  ): MatchExpression<input, WithReturn<output, result>, CaseInputs | InferInput<schema>>
+  ): MatchExpression<input, WithReturn<output, result>, CaseInputs | SchemaCaseInput<schema>>
   case<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
     ...args: [...schemas, (parsed: InferOutput<schemas[number]>, input: input) => result]
-  ): MatchExpression<input, WithReturn<output, result>, CaseInputs | InferInput<schemas[number]>>
+  ): MatchExpression<input, WithReturn<output, result>, CaseInputs | SchemaCaseInput<schemas[number]>>
   case(...args: any[]): MatchExpression<input, any, any> {
     const length = args.length
     const handler = args[length - 1] as (value: unknown, input: input) => unknown
@@ -243,6 +253,10 @@ class MatchExpression<input, output, CaseInputs = never> {
     )
     const run = matcher.defaultAsync(handler as any) as (input: input) => Promise<unknown>
     return run(this.input)
+  }
+
+  exhaustive(this: RemainingInput<input, CaseInputs> extends never ? MatchExpression<input, output, CaseInputs> : never): output {
+    return this.default(match.throw as (context: DefaultContext<input>) => never) as output
   }
 
   output<O>(): MatchExpression<input, O, CaseInputs> {
@@ -417,18 +431,18 @@ class ReusableMatcher<input, output, CaseInputs = never> {
     return this.dispatch
   }
 
-  case<schema extends StandardSchemaV1, result>(
-    schema: schema,
+  case<const schema extends StandardSchemaV1, result>(
+    schema: EnsureSchemaOverlap<input, schema>,
     handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
-  ): ReusableMatcher<input, WithReturn<output, result>, CaseInputs | InferInput<schema>>
-  case<schema extends StandardSchemaV1, result>(
-    schema: schema,
+  ): ReusableMatcher<input, WithReturn<output, result>, CaseInputs | SchemaCaseInput<schema>>
+  case<const schema extends StandardSchemaV1, result>(
+    schema: EnsureSchemaOverlap<input, schema>,
     predicate: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => unknown,
     handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
-  ): ReusableMatcher<input, WithReturn<output, result>, CaseInputs | InferInput<schema>>
+  ): ReusableMatcher<input, WithReturn<output, result>, CaseInputs | SchemaCaseInput<schema>>
   case<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
     ...args: [...schemas, (parsed: InferOutput<schemas[number]>, input: input) => result]
-  ): ReusableMatcher<input, WithReturn<output, result>, CaseInputs | InferInput<schemas[number]>>
+  ): ReusableMatcher<input, WithReturn<output, result>, CaseInputs | SchemaCaseInput<schemas[number]>>
   case(...args: any[]): ReusableMatcher<input, any, any> {
     const length = args.length
     const handler = args[length - 1] as (value: unknown, input: input) => unknown
@@ -527,6 +541,10 @@ class ReusableMatcher<input, output, CaseInputs = never> {
       }
       return await handler(context)
     }
+  }
+
+  exhaustive(this: RemainingInput<input, CaseInputs> extends never ? ReusableMatcher<input, output, CaseInputs> : never): (input: input) => output {
+    return this.default(match.throw as (context: DefaultContext<input>) => never) as (input: input) => output
   }
 
   private buildMatchError(input: input, allSchemas: StandardSchemaV1[]): MatchError {
@@ -752,5 +770,12 @@ class ReusableMatcherAt<input, output, CaseInputs = never, key extends PropertyK
     handler: ((context: DefaultContext<input>) => unknown | Promise<unknown>)
   ): (input: any) => Promise<unknown> {
     return this.matcher.defaultAsync(handler as any) as any
+  }
+  exhaustive(
+    this: RemainingInput<input, CaseInputs> extends never
+      ? ReusableMatcherAt<input, output, CaseInputs, key>
+      : never
+  ): (input: input) => output {
+    return this.matcher.default(match.throw as (context: DefaultContext<input>) => never) as (input: input) => output
   }
 }
