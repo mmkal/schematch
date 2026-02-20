@@ -100,6 +100,40 @@ describe('high-level/basic-usage', () => {
     expect(getSessionId({type: 'message.updated', properties: {sessionId: 'xyz'}})).toBe('xyz')
   })
 
+
+  it('narrows remaining fields automatically when matching by discriminator key', () => {
+    type HttpResponse =
+      | {status: 'success'; code: 200; data: {message: string}}
+      | {status: 'error'; code: 400; data: {error: string}}
+      | {status: 'pending'; code: 102; data: {retryAfter: number}}
+      | {status: 'not_found'; code: 404; data: {resource: string}}
+
+    const responses: HttpResponse[] = [
+      {status: 'success', code: 200, data: {message: 'OK'}},
+      {status: 'error', code: 400, data: {error: 'Bad request'}},
+      {status: 'pending', code: 102, data: {retryAfter: 30}},
+      {status: 'not_found', code: 404, data: {resource: 'post'}},
+    ]
+
+    const toTemp = match
+      .input<HttpResponse>()
+      .at('status')
+      .case('success', r => ({type: 'done' as const, message: r.data.message}))
+      .case('error', r => ({type: 'fail' as const, reason: r.data.error}))
+      .case('pending', r => ({type: 'waiting' as const, seconds: r.data.retryAfter}))
+      .case('not_found', r => ({type: 'missing' as const, what: r.data.resource}))
+      .exhaustive()
+
+    const tempObjects = responses.map(resp => toTemp(resp))
+
+    expect(tempObjects).toEqual([
+      {type: 'done', message: 'OK'},
+      {type: 'fail', reason: 'Bad request'},
+      {type: 'waiting', seconds: 30},
+      {type: 'missing', what: 'post'},
+    ])
+  })
+
   it('uses schema output values in handlers', () => {
     const ParseNumber: StandardSchemaV1<unknown, number> = {
       '~standard': {

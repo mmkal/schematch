@@ -173,6 +173,61 @@ describe('high-level/type-inference', () => {
     expectTypeOf(matcher).toEqualTypeOf<(input: unknown) => Promise<number>>()
   })
 
+
+  describe('.exhaustive', () => {
+    it('returns result without default when all inputs are covered', () => {
+      const status = 'ready' as 'ready' | 'pending'
+
+      const result = match(status)
+        .case(z.literal('ready'), () => 'ok')
+        .case(z.literal('pending'), () => 'wait')
+        .exhaustive()
+
+      expectTypeOf(result).toEqualTypeOf<string>()
+    })
+
+    it('throws MatchError at runtime when exhaustive matcher receives an unmatched value', () => {
+      const matcher = match
+        .input<string | number>()
+        .case(z.string(), value => value.length)
+        .case(z.number(), value => value + 1)
+        .exhaustive()
+
+      expectTypeOf(matcher).toEqualTypeOf<(input: string | number) => number>()
+
+      expect(() => matcher(true as unknown as string | number)).toThrow(MatchError)
+    })
+
+
+    it('rejects impossible trailing case after broad string handler', () => {
+      const matcher = match('hello' as 'hi' | 'pixel')
+        .case(z.literal('hi'), value => value.length)
+        .case(z.string(), value => value + 1)
+
+      // @ts-expect-error number cannot overlap with 'hi' | 'pixel'
+      matcher.case(z.number(), value => value + 1)
+    })
+
+    it('rejects impossible literal cases', () => {
+      // @ts-expect-error invalid is not part of the matcher input union
+      match<'ready' | 'pending'>('ready').case(z.literal('invalid'), () => '')
+    })
+
+    it('rejects exhaustive when not all union members are handled', () => {
+      // @ts-expect-error pending remains unhandled
+      match<'ready' | 'pending'>('ready').case(z.literal('ready'), () => '').exhaustive()
+    })
+
+    it('allows exhaustive when all union members are handled', () => {
+      const value = match<'ready' | 'pending'>('ready')
+        .case(z.literal('ready'), () => '')
+        .case(z.literal('pending'), () => '')
+        .exhaustive()
+
+      expectTypeOf(value).toEqualTypeOf<string>()
+    })
+  })
+
   describe('.default modes', () => {
     it('.default(match.throw) throws MatchError on no match', () => {
       const result = match(42)
@@ -289,8 +344,8 @@ describe('high-level/type-inference', () => {
         .case(AsyncNumber, n => n + 1)
         .defaultAsync<never>(match.throw)
 
-      // Since the schema input type is unknown, 'never' mode also accepts unknown
-      expectTypeOf(matcher).toEqualTypeOf<(input: unknown) => Promise<number>>()
+      // In never mode, async reusable input is constrained by handled case inputs
+      expectTypeOf(matcher).toEqualTypeOf<(input: number) => Promise<number>>()
     })
 
     it('.defaultAsync<never>(match.throw) async reusable constrains input with typed schemas', () => {
