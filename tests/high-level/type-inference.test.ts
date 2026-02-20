@@ -198,6 +198,16 @@ describe('high-level/type-inference', () => {
       expect(() => matcher(true as unknown as string | number)).toThrow(MatchError)
     })
 
+
+    it('rejects impossible trailing case after broad string handler', () => {
+      const matcher = match('hello' as 'hi' | 'pixel')
+        .case(z.literal('hi'), value => value.length)
+        .case(z.string(), value => value + 1)
+
+      // @ts-expect-error number cannot overlap with 'hi' | 'pixel'
+      matcher.case(z.number(), value => value + 1)
+    })
+
     it('rejects impossible literal cases', () => {
       // @ts-expect-error invalid is not part of the matcher input union
       match<'ready' | 'pending'>('ready').case(z.literal('invalid'), () => '')
