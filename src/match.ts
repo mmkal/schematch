@@ -69,8 +69,20 @@ type SchemaCaseInput<schema extends StandardSchemaV1> =
 
 type Overlap<input, schema extends StandardSchemaV1> = input & SchemaCaseInput<schema>
 type EnsureSchemaOverlap<input, schema extends StandardSchemaV1> =
-  [Overlap<input, schema>] extends [never] ? never : schema
+  IsUnion<input> extends true
+    ? ([Overlap<input, schema>] extends [never] ? never : schema)
+    : schema
 type RemainingInput<input, CaseInputs> = Exclude<input, CaseInputs>
+
+type InvalidSchema<input, schema extends StandardSchemaV1> =
+  IsUnion<input> extends true
+    ? ([Overlap<input, schema>] extends [never] ? schema : never)
+    : never
+
+type EnsureSchemasOverlap<
+  input,
+  schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]],
+> = [InvalidSchema<input, schemas[number]>] extends [never] ? schemas : never
 
 type MatchState<output> =
   | {matched: true; value: output}
@@ -181,7 +193,7 @@ class MatchExpression<input, output, CaseInputs = never> {
     handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
   ): MatchExpression<input, WithReturn<output, result>, CaseInputs | SchemaCaseInput<schema>>
   case<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
-    ...args: [...schemas, (parsed: InferOutput<schemas[number]>, input: input) => result]
+    ...args: [...EnsureSchemasOverlap<input, schemas>, (parsed: InferOutput<schemas[number]>, input: input) => result]
   ): MatchExpression<input, WithReturn<output, result>, CaseInputs | SchemaCaseInput<schemas[number]>>
   case(...args: any[]): MatchExpression<input, any, any> {
     const length = args.length
@@ -441,7 +453,7 @@ class ReusableMatcher<input, output, CaseInputs = never> {
     handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
   ): ReusableMatcher<input, WithReturn<output, result>, CaseInputs | SchemaCaseInput<schema>>
   case<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
-    ...args: [...schemas, (parsed: InferOutput<schemas[number]>, input: input) => result]
+    ...args: [...EnsureSchemasOverlap<input, schemas>, (parsed: InferOutput<schemas[number]>, input: input) => result]
   ): ReusableMatcher<input, WithReturn<output, result>, CaseInputs | SchemaCaseInput<schemas[number]>>
   case(...args: any[]): ReusableMatcher<input, any, any> {
     const length = args.length
@@ -726,7 +738,7 @@ class ReusableMatcherAt<input, output, CaseInputs = never, key extends PropertyK
     handler: (value: AtCaseInput<input, key, value>) => result
   ): ReusableMatcherAt<input, WithReturn<output, result>, CaseInputs | AtCaseInput<input, key, value>, key> {
     const schema = atCaseSchema<input, key, value>(this.key, value)
-    const next = this.matcher.case(schema, (_parsed, narrowed) =>
+    const next = (this.matcher as any).case(schema, (_parsed: unknown, narrowed: input) =>
       handler(narrowed as AtCaseInput<input, key, value>)
     ) as ReusableMatcher<input, WithReturn<output, result>, CaseInputs | AtCaseInput<input, key, value>>
 

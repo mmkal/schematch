@@ -198,6 +198,11 @@ describe('high-level/type-inference', () => {
       expect(() => matcher(true as unknown as string | number)).toThrow(MatchError)
     })
 
+    it('rejects impossible literal cases', () => {
+      // @ts-expect-error invalid is not part of the matcher input union
+      match<'ready' | 'pending'>('ready').case(z.literal('invalid'), () => '')
+    })
+
     it('rejects exhaustive when not all union members are handled', () => {
       // @ts-expect-error pending remains unhandled
       match<'ready' | 'pending'>('ready').case(z.literal('ready'), () => '').exhaustive()
