@@ -99,6 +99,22 @@ const output = match(input)
   .default(() => 'unexpected')
 ```
 
+## TypeBox Script strings
+
+`typebox` is an optional peer dependency. If you configure it once, string `.case(...)` clauses are parsed with TypeBox's `Script` API and inferred from the TypeScript-looking string:
+
+```typescript
+import {match} from 'schematch'
+
+match.typebox(await import('typebox'))
+
+const output = match(input)
+  .case(`string`, s => s.substring(2, 4))
+  .case(`[number, number]`, ([x, y]) => `total: ${x + y}`)
+  .case(`{ foo: string; bar: number }`, obj => obj.foo + obj.bar.toFixed(2))
+  .default(() => 'unexpected')
+```
+
 ## `.default(...)` - terminating a match
 
 The `.default(...)` method terminates a match expression. It takes a fallback handler, called with a single context object when no case matched.

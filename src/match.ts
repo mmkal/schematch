@@ -4,6 +4,8 @@ import {ASYNC_REQUIRED, NO_MATCH, matchSchemaAsync, matchSchemaSync, extractDisc
 import type {DiscriminatorInfo} from './standard-schema/compiled.js'
 import {isPromiseLike, validateSync} from './standard-schema/validation.js'
 import type {InferInput, InferOutput} from './types.js'
+import {configureTypebox, typeboxScriptToStandardSchema} from './typebox.js'
+import type {TypeboxModule, TypeboxNarrowedValue, TypeboxScriptValue} from './typebox.js'
 import {MatchError} from './errors.js'
 import type {MatchErrorOptions} from './errors.js'
 
@@ -106,8 +108,18 @@ type MatchFactory = {
    * ```
    */
   throw: (context: {error: MatchError}) => never
+  typebox(module: TypeboxModule): MatchFactory
   input<input>(): ReusableMatcher<input, Unset>
   output<output>(): ReusableMatcher<unknown, output>
+  case<input, script extends string, result>(
+    script: script,
+    handler: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => result
+  ): ReusableMatcher<input, WithReturn<Unset, result>, TypeboxScriptValue<script>>
+  case<input, script extends string, result>(
+    script: script,
+    predicate: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => unknown,
+    handler: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => result
+  ): ReusableMatcher<input, WithReturn<Unset, result>, TypeboxScriptValue<script>>
   case<input, schema extends StandardSchemaV1, result>(
     schema: schema,
     handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
@@ -129,6 +141,10 @@ export const match = Object.assign(
   {
     throw({error}: {error: MatchError}) {
       throw error
+    },
+    typebox(module: TypeboxModule) {
+      configureTypebox(module)
+      return match
     },
     input() {
       return new ReusableMatcher<unknown, Unset>(unmatched as MatchState<Unset>)
@@ -161,6 +177,15 @@ class MatchExpression<input, output, CaseInputs = never> {
     private readonly clauses: Array<MatchClause<input> | MatchWhenClause<input>> = []
   ) {}
 
+  case<script extends string, result>(
+    script: script,
+    handler: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => result
+  ): MatchExpression<input, WithReturn<output, result>, CaseInputs | TypeboxScriptValue<script>>
+  case<script extends string, result>(
+    script: script,
+    predicate: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => unknown,
+    handler: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => result
+  ): MatchExpression<input, WithReturn<output, result>, CaseInputs | TypeboxScriptValue<script>>
   case<schema extends StandardSchemaV1, result>(
     schema: schema,
     handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
@@ -179,7 +204,7 @@ class MatchExpression<input, output, CaseInputs = never> {
     const hasGuard = length === 3 && typeof args[1] === 'function' && !looksLikeStandardSchema(args[1])
     const predicate = hasGuard ? (args[1] as (value: unknown, input: input) => unknown) : undefined
     const schemaEnd = hasGuard ? 1 : length - 1
-    const schemas = args.slice(0, schemaEnd) as StandardSchemaV1[]
+    const schemas = args.slice(0, schemaEnd).map(toCaseSchema) as StandardSchemaV1[]
     return new MatchExpression(this.input, [...this.clauses, {schemas, predicate, handler}])
   }
 
@@ -381,6 +406,11 @@ function atCaseSchema<input, key extends PropertyKey, value>(
   }
 }
 
+const toCaseSchema = (schema: unknown): StandardSchemaV1 => {
+  if (typeof schema === 'string') return typeboxScriptToStandardSchema(schema)
+  return schema as StandardSchemaV1
+}
+
 class ReusableMatcher<input, output, CaseInputs = never> {
   private dispatch: DispatchTable | null | undefined = undefined // undefined = not yet computed
 
@@ -417,6 +447,15 @@ class ReusableMatcher<input, output, CaseInputs = never> {
     return this.dispatch
   }
 
+  case<script extends string, result>(
+    script: script,
+    handler: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => result
+  ): ReusableMatcher<input, WithReturn<output, result>, CaseInputs | TypeboxScriptValue<script>>
+  case<script extends string, result>(
+    script: script,
+    predicate: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => unknown,
+    handler: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => result
+  ): ReusableMatcher<input, WithReturn<output, result>, CaseInputs | TypeboxScriptValue<script>>
   case<schema extends StandardSchemaV1, result>(
     schema: schema,
     handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
@@ -435,7 +474,7 @@ class ReusableMatcher<input, output, CaseInputs = never> {
     const hasGuard = length === 3 && typeof args[1] === 'function' && !looksLikeStandardSchema(args[1])
     const predicate = hasGuard ? (args[1] as (value: unknown, input: input) => unknown) : undefined
     const schemaEnd = hasGuard ? 1 : length - 1
-    const schemas = args.slice(0, schemaEnd) as StandardSchemaV1[]
+    const schemas = args.slice(0, schemaEnd).map(toCaseSchema) as StandardSchemaV1[]
 
     return new ReusableMatcher(this.terminal, [...this.clauses, {schemas, predicate, handler}])
   }

@@ -41,6 +41,14 @@
     "type": "git",
     "url": "https://github.com/mmkal/schematch.git"
   },
+  "peerDependencies": {
+    "typebox": "^1.1.38"
+  },
+  "peerDependenciesMeta": {
+    "typebox": {
+      "optional": true
+    }
+  },
   "bugs": {
     "url": "https://github.com/mmkal/schematch/issues"
   },
@@ -51,6 +59,7 @@
     "arktype": "2.1.29",
     "effect": "3.19.16",
     "ts-pattern": "5.9.0",
+    "typebox": "1.1.38",
     "typescript": "5.7.3",
     "valibot": "1.2.0",
     "vitest": "4.0.18",
