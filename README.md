@@ -101,12 +101,10 @@ const output = match(input)
 
 ## TypeBox Script strings
 
-`typebox` is an optional peer dependency. If you configure it once, string `.case(...)` clauses are parsed with TypeBox's `Script` API and inferred from the TypeScript-looking string:
+`typebox` is an optional peer dependency. Import the TypeBox entrypoint to use string `.case(...)` clauses parsed with TypeBox's `Script` API and inferred from the TypeScript-looking string:
 
 ```typescript
-import {match} from 'schematch'
-
-match.typebox(await import('typebox'))
+import {match} from 'schematch/typebox'
 
 const output = match(input)
   .case(`string`, s => s.substring(2, 4))

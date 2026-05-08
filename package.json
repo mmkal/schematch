@@ -7,6 +7,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./typebox": {
+      "types": "./dist/typebox.d.ts",
+      "default": "./dist/typebox.js"
     }
   },
   "files": [

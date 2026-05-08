@@ -1,30 +1,22 @@
-import {createRequire} from 'node:module'
-
-import type {Static, TSchema, TScript} from 'typebox'
+import * as Typebox from 'typebox'
+import type {Static, TScript} from 'typebox'
 import type {TLocalizedValidationError} from 'typebox/error'
-import type * as TypeboxSchema from 'typebox/schema'
+import {Compile} from 'typebox/schema'
 
 import type {StandardSchemaV1} from './standard-schema/contract.js'
-
-type TypeboxScript = <script extends string>(input: script) => TScript<{}, script>
-
-type TypeboxSchemaModule = {
-  Compile?: typeof TypeboxSchema.Compile
-  default?: {
-    Compile?: typeof TypeboxSchema.Compile
-  }
-}
-
-export type TypeboxModule = {
-  Script?: TypeboxScript
-  Compile?: typeof TypeboxSchema.Compile
-  Schema?: TypeboxSchemaModule
-  default?: {
-    Script?: TypeboxScript
-    Compile?: typeof TypeboxSchema.Compile
-    Schema?: TypeboxSchemaModule
-  }
-}
+import {
+  createMatchFactory,
+  type AtCaseInput,
+  type AtCaseValues,
+  type MatchExpression,
+  type MatchFactory,
+  type NarrowedOutput,
+  type ReusableMatcher,
+  type ReusableMatcherAt,
+  type Unset,
+  type WithReturn,
+} from './match.js'
+import type {InferInput, InferOutput} from './types.js'
 
 export type TypeboxScriptValue<script extends string> = Static<TScript<{}, script>>
 
@@ -37,91 +29,145 @@ export type TypeboxNarrowedValue<input, script extends string> =
 
 type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : false
 
-type TypeboxRuntime = {
-  Script: (input: string) => TSchema
-  Compile: typeof TypeboxSchema.Compile
+export type TypeboxMatchFactory = Omit<MatchFactory, 'case' | 'input' | 'output'> & {
+  <const input, output = Unset>(value: input): TypeboxMatchExpression<input, output>
+  input<input>(): TypeboxReusableMatcher<input, Unset>
+  output<output>(): TypeboxReusableMatcher<unknown, output>
+  case<input, script extends string, result>(
+    script: script,
+    handler: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => result
+  ): TypeboxReusableMatcher<input, WithReturn<Unset, result>, TypeboxScriptValue<script>>
+  case<input, script extends string, result>(
+    script: script,
+    predicate: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => unknown,
+    handler: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => result
+  ): TypeboxReusableMatcher<input, WithReturn<Unset, result>, TypeboxScriptValue<script>>
+  case<input, schema extends StandardSchemaV1, result>(
+    schema: schema,
+    handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
+  ): TypeboxReusableMatcher<input, WithReturn<Unset, result>, InferInput<schema>>
+  case<input, schema extends StandardSchemaV1, result>(
+    schema: schema,
+    predicate: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => unknown,
+    handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
+  ): TypeboxReusableMatcher<input, WithReturn<Unset, result>, InferInput<schema>>
+  case<input, schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
+    ...args: [...schemas, (parsed: InferOutput<schemas[number]>, input: input) => result]
+  ): TypeboxReusableMatcher<input, WithReturn<Unset, result>, InferInput<schemas[number]>>
 }
+
+export type TypeboxMatchExpression<input, output, CaseInputs = never> =
+  Omit<MatchExpression<input, output, CaseInputs>, 'case' | 'when' | 'output' | 'returnType' | 'narrow'> & {
+    case<script extends string, result>(
+      script: script,
+      handler: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => result
+    ): TypeboxMatchExpression<input, WithReturn<output, result>, CaseInputs | TypeboxScriptValue<script>>
+    case<script extends string, result>(
+      script: script,
+      predicate: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => unknown,
+      handler: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => result
+    ): TypeboxMatchExpression<input, WithReturn<output, result>, CaseInputs | TypeboxScriptValue<script>>
+    case<schema extends StandardSchemaV1, result>(
+      schema: schema,
+      handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
+    ): TypeboxMatchExpression<input, WithReturn<output, result>, CaseInputs | InferInput<schema>>
+    case<schema extends StandardSchemaV1, result>(
+      schema: schema,
+      predicate: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => unknown,
+      handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
+    ): TypeboxMatchExpression<input, WithReturn<output, result>, CaseInputs | InferInput<schema>>
+    case<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
+      ...args: [...schemas, (parsed: InferOutput<schemas[number]>, input: input) => result]
+    ): TypeboxMatchExpression<input, WithReturn<output, result>, CaseInputs | InferInput<schemas[number]>>
+    when<result>(
+      predicate: (value: input) => unknown,
+      handler: (value: input, input: input) => result
+    ): TypeboxMatchExpression<input, WithReturn<output, result>, CaseInputs>
+    output<O>(): TypeboxMatchExpression<input, O, CaseInputs>
+    returnType(): TypeboxMatchExpression<input, output, CaseInputs>
+    narrow(): TypeboxMatchExpression<input, output, CaseInputs>
+  }
+
+export type TypeboxReusableMatcher<input, output, CaseInputs = never> =
+  Omit<ReusableMatcher<input, output, CaseInputs>, 'case' | 'when' | 'output' | 'at'> & {
+    case<script extends string, result>(
+      script: script,
+      handler: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => result
+    ): TypeboxReusableMatcher<input, WithReturn<output, result>, CaseInputs | TypeboxScriptValue<script>>
+    case<script extends string, result>(
+      script: script,
+      predicate: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => unknown,
+      handler: (parsed: TypeboxScriptValue<script>, input: TypeboxNarrowedValue<input, script>) => result
+    ): TypeboxReusableMatcher<input, WithReturn<output, result>, CaseInputs | TypeboxScriptValue<script>>
+    case<schema extends StandardSchemaV1, result>(
+      schema: schema,
+      handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
+    ): TypeboxReusableMatcher<input, WithReturn<output, result>, CaseInputs | InferInput<schema>>
+    case<schema extends StandardSchemaV1, result>(
+      schema: schema,
+      predicate: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => unknown,
+      handler: (parsed: InferOutput<schema>, input: NarrowedOutput<input, schema>) => result
+    ): TypeboxReusableMatcher<input, WithReturn<output, result>, CaseInputs | InferInput<schema>>
+    case<schemas extends readonly [StandardSchemaV1, ...StandardSchemaV1[]], result>(
+      ...args: [...schemas, (parsed: InferOutput<schemas[number]>, input: input) => result]
+    ): TypeboxReusableMatcher<input, WithReturn<output, result>, CaseInputs | InferInput<schemas[number]>>
+    when<result>(
+      predicate: (value: input) => unknown,
+      handler: (value: input, input: input) => result
+    ): TypeboxReusableMatcher<input, WithReturn<output, result>, CaseInputs>
+    output<O>(): TypeboxReusableMatcher<input, O, CaseInputs>
+    at<key extends PropertyKey>(key: key): TypeboxReusableMatcherAt<input, output, CaseInputs, key>
+  }
+
+export type TypeboxReusableMatcherAt<input, output, CaseInputs = never, key extends PropertyKey = PropertyKey> =
+  Omit<ReusableMatcherAt<input, output, CaseInputs, key>, 'case' | 'when' | 'output'> & {
+    case<value extends AtCaseValues<input, key>, result>(
+      value: value,
+      handler: (value: AtCaseInput<input, key, value>) => result
+    ): TypeboxReusableMatcherAt<input, WithReturn<output, result>, CaseInputs | AtCaseInput<input, key, value>, key>
+    when<result>(
+      predicate: (value: input) => unknown,
+      handler: (value: input, input: input) => result
+    ): TypeboxReusableMatcherAt<input, WithReturn<output, result>, CaseInputs, key>
+    output<O>(): TypeboxReusableMatcherAt<input, O, CaseInputs, key>
+  }
 
 const fastCheckSymbol = Symbol.for('schematch.fast-check')
-const require = createRequire(import.meta.url)
-
-let typeboxRuntime: TypeboxRuntime | null = null
 const schemaCache = new Map<string, StandardSchemaV1>()
 
-export const configureTypebox = (module: TypeboxModule): void => {
-  const runtime = resolveTypeboxRuntime(module)
-  if (!runtime) {
-    throw new TypeError('Expected a TypeBox module with a Script function.')
-  }
+export const typeboxScriptToStandardSchema = (schema: unknown): StandardSchemaV1 => {
+  if (typeof schema !== 'string') return schema as StandardSchemaV1
 
-  typeboxRuntime = runtime
-  schemaCache.clear()
-}
-
-export const typeboxScriptToStandardSchema = (script: string): StandardSchemaV1 => {
-  if (!typeboxRuntime) {
-    throw new TypeError('TypeBox is not configured. Call match.typebox(await import("typebox")) before using string cases.')
-  }
-
-  const cached = schemaCache.get(script)
+  const cached = schemaCache.get(schema)
   if (cached) return cached
 
-  const type = typeboxRuntime.Script(script)
-  let validator: ReturnType<typeof TypeboxSchema.Compile> | null = null
+  const type = Typebox.Script(schema)
+  let validator: ReturnType<typeof Compile> | null = null
   const getValidator = () => {
-    if (!validator) validator = typeboxRuntime!.Compile(type)
+    if (!validator) validator = Compile(type)
     return validator
   }
 
-  const schema = {
+  const standardSchema = {
     '~standard': {
       version: 1,
       vendor: 'schematch:typebox',
       validate: (value: unknown) => {
-        const validator = getValidator()
-        if (validator.Check(value)) return {value}
-        return {issues: validationIssues(validator, value)}
+        const compiled = getValidator()
+        if (compiled.Check(value)) return {value}
+        return {issues: validationIssues(compiled, value)}
       },
     },
     [fastCheckSymbol]: (value: unknown) => getValidator().Check(value),
-    typebox: {script, type},
+    typebox: {script: schema, type},
   } satisfies StandardSchemaV1 & Record<PropertyKey, unknown>
 
-  schemaCache.set(script, schema)
-  return schema
-}
-
-const resolveTypeboxRuntime = (module: TypeboxModule): TypeboxRuntime | null => {
-  const candidate = typeof module.Script === 'function' ? module : module.default
-  const script = candidate && typeof candidate.Script === 'function' ? candidate.Script : null
-  if (!script) return null
-
-  return {
-    Script: script as (input: string) => TSchema,
-    Compile: resolveTypeboxCompile(module) || loadTypeboxSchemaCompile(),
-  }
-}
-
-const resolveTypeboxCompile = (
-  module: TypeboxModule | NonNullable<TypeboxModule['default']>
-): typeof TypeboxSchema.Compile | null => {
-  if (typeof module.Compile === 'function') return module.Compile
-  if (typeof module.Schema?.Compile === 'function') return module.Schema.Compile
-  if (typeof module.Schema?.default?.Compile === 'function') return module.Schema.default.Compile
-  return null
-}
-
-const loadTypeboxSchemaCompile = (): typeof TypeboxSchema.Compile => {
-  const schema = require('typebox/schema') as TypeboxSchemaModule
-  const compile = resolveTypeboxCompile({Schema: schema})
-  if (!compile) {
-    throw new TypeError('Expected typebox/schema to expose a Compile function.')
-  }
-  return compile
+  schemaCache.set(schema, standardSchema)
+  return standardSchema
 }
 
 const validationIssues = (
-  validator: ReturnType<typeof TypeboxSchema.Compile>,
+  validator: ReturnType<typeof Compile>,
   value: unknown
 ): StandardSchemaV1.Issue[] => {
   const [_result, validationErrors] = validator.Errors(value)
@@ -139,3 +185,5 @@ const pathSegments = (error: TLocalizedValidationError): PropertyKey[] => {
     .split('/')
     .map(segment => segment.split('~1').join('/').split('~0').join('~'))
 }
+
+export const match = createMatchFactory(typeboxScriptToStandardSchema) as unknown as TypeboxMatchFactory

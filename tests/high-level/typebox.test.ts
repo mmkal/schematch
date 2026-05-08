@@ -1,13 +1,8 @@
-import * as Typebox from 'typebox'
 import {expect, expectTypeOf, it} from 'vitest'
 
-import {match} from '../../src/index.js'
-
-match.typebox(Typebox)
+import {match} from '../../src/typebox.js'
 
 it('uses TypeBox Script strings as reusable matcher input types', () => {
-  match.typebox(Typebox)
-  
   const matcher = match
     .case(`string`, value => value.substring(2, 4))
     .case(`[number, number]`, ([x, y]) => `total: ${x + y}`)
@@ -22,7 +17,7 @@ it('uses TypeBox Script strings as reusable matcher input types', () => {
 it('reports TypeBox validation errors on match failures', () => {
   const matcher = match
     .case(`{ foo: string; bar: number }`, () => 'matched')
-    .orThrow()
+    .exhaustive()
 
   expect(() => matcher({foo: 'score: ', bar: 'nope'})).toThrow(/must be number/)
 })
