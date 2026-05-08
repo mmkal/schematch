@@ -39,7 +39,7 @@ type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : 
  * - The input is not a union (no narrowing benefit), or
  * - `Extract` produces `never` (schema output doesn't overlap with input)
  */
-type NarrowedOutput<input, schema extends StandardSchemaV1> =
+export type NarrowedOutput<input, schema extends StandardSchemaV1> =
   StrictEqual<InferInput<schema>, InferOutput<schema>> extends true
     ? IsUnion<input> extends true
       ? [Extract<input, InferOutput<schema>>] extends [never]
@@ -48,16 +48,16 @@ type NarrowedOutput<input, schema extends StandardSchemaV1> =
       : InferOutput<schema>
     : InferOutput<schema>
 
-type AtCaseValues<input, key extends PropertyKey> =
+export type AtCaseValues<input, key extends PropertyKey> =
   input extends unknown
     ? key extends keyof input
       ? input[key]
       : never
     : never
 
-type AtCaseInput<input, key extends PropertyKey, value> = Extract<input, Record<key, value>>
+export type AtCaseInput<input, key extends PropertyKey, value> = Extract<input, Record<key, value>>
 
-type DefaultContext<input> = {
+export type DefaultContext<input> = {
   readonly input: input
   readonly error: MatchError
 }
@@ -72,10 +72,10 @@ const unmatched: MatchState<never> = {
 }
 
 const unset = Symbol('unset')
-type Unset = typeof unset
+export type Unset = typeof unset
 
-type WithReturn<current, next> = current extends Unset ? next : current | next
-type WithAsyncReturn<current, next> = current extends Unset ? Awaited<next> : current | Awaited<next>
+export type WithReturn<current, next> = current extends Unset ? next : current | next
+export type WithAsyncReturn<current, next> = current extends Unset ? Awaited<next> : current | Awaited<next>
 
 type DefaultReturn<
   unmatched,
@@ -91,7 +91,7 @@ type DefaultAsyncReturn<
   ? never
   : ReturnType<handler>
 
-type MatchFactory = {
+export type MatchFactory = {
   <const input, output = Unset>(value: input): MatchExpression<input, output>
   /**
    * Convenience fallback for `.default(...)` and `.defaultAsync(...)` that simply
@@ -122,25 +122,33 @@ type MatchFactory = {
   ): ReusableMatcher<input, WithReturn<Unset, result>, InferInput<schemas[number]>>
 }
 
-export const match = Object.assign(
+type SchemaNormalizer = (schema: unknown) => StandardSchemaV1
+
+const toStandardSchema = (schema: unknown): StandardSchemaV1 => schema as StandardSchemaV1
+
+const throwMatch = ({error}: {error: MatchError}): never => {
+  throw error
+}
+
+export const createMatchFactory = (normalizeSchema: SchemaNormalizer = toStandardSchema): MatchFactory => Object.assign(
   function match<const input, output = Unset>(value: input): MatchExpression<input, output> {
-    return new MatchExpression(value) as MatchExpression<input, output>
+    return new MatchExpression(value, [], normalizeSchema) as MatchExpression<input, output>
   },
   {
-    throw({error}: {error: MatchError}) {
-      throw error
-    },
+    throw: throwMatch,
     input() {
-      return new ReusableMatcher<unknown, Unset>(unmatched as MatchState<Unset>)
+      return new ReusableMatcher<unknown, Unset>(unmatched as MatchState<Unset>, [], normalizeSchema)
     },
     output() {
-      return new ReusableMatcher<unknown, Unset>(unmatched as MatchState<Unset>)
+      return new ReusableMatcher<unknown, Unset>(unmatched as MatchState<Unset>, [], normalizeSchema)
     },
     'case'(...args: any[]) {
-      return (new ReusableMatcher<unknown, Unset>(unmatched as MatchState<Unset>) as any).case(...args)
+      return (new ReusableMatcher<unknown, Unset>(unmatched as MatchState<Unset>, [], normalizeSchema) as any).case(...args)
     },
   }
 ) as MatchFactory
+
+export const match = createMatchFactory()
 
 // ─── MatchExpression (sync inline) ───────────────────────────────────────────
 
@@ -155,10 +163,11 @@ type MatchWhenClause<input> = {
   handler: (value: input, input: input) => unknown
 }
 
-class MatchExpression<input, output, CaseInputs = never> {
+export class MatchExpression<input, output, CaseInputs = never> {
   constructor(
     private readonly input: input,
-    private readonly clauses: Array<MatchClause<input> | MatchWhenClause<input>> = []
+    private readonly clauses: Array<MatchClause<input> | MatchWhenClause<input>> = [],
+    private readonly normalizeSchema: SchemaNormalizer = toStandardSchema
   ) {}
 
   case<schema extends StandardSchemaV1, result>(
@@ -179,8 +188,8 @@ class MatchExpression<input, output, CaseInputs = never> {
     const hasGuard = length === 3 && typeof args[1] === 'function' && !looksLikeStandardSchema(args[1])
     const predicate = hasGuard ? (args[1] as (value: unknown, input: input) => unknown) : undefined
     const schemaEnd = hasGuard ? 1 : length - 1
-    const schemas = args.slice(0, schemaEnd) as StandardSchemaV1[]
-    return new MatchExpression(this.input, [...this.clauses, {schemas, predicate, handler}])
+    const schemas = args.slice(0, schemaEnd).map(this.normalizeSchema) as StandardSchemaV1[]
+    return new MatchExpression(this.input, [...this.clauses, {schemas, predicate, handler}], this.normalizeSchema)
   }
 
   when<result>(
@@ -191,7 +200,7 @@ class MatchExpression<input, output, CaseInputs = never> {
     predicate: (value: input) => unknown,
     handler: (value: input, input: input) => unknown
   ): MatchExpression<input, any, CaseInputs> {
-    return new MatchExpression(this.input, [...this.clauses, {when: predicate, handler}])
+    return new MatchExpression(this.input, [...this.clauses, {when: predicate, handler}], this.normalizeSchema)
   }
 
   /**
@@ -212,10 +221,19 @@ class MatchExpression<input, output, CaseInputs = never> {
   default(handler: ((context: DefaultContext<input>) => unknown)): unknown {
     const matcher = new ReusableMatcher<input, output, CaseInputs>(
       unmatched as MatchState<output>,
-      this.clauses as Array<ReusableClause<input> | ReusableWhenClause<input>>
+      this.clauses as Array<ReusableClause<input> | ReusableWhenClause<input>>,
+      this.normalizeSchema
     )
     const run = matcher.default(handler as any) as (input: input) => unknown
     return run(this.input)
+  }
+
+  orThrow(): WithReturn<output, never> {
+    return this.default(throwMatch as any) as WithReturn<output, never>
+  }
+
+  exhaustive(): input extends CaseInputs ? output : never {
+    return this.default<never>(throwMatch as any) as input extends CaseInputs ? output : never
   }
 
   /**
@@ -239,7 +257,8 @@ class MatchExpression<input, output, CaseInputs = never> {
   ): Promise<unknown> {
     const matcher = new ReusableMatcher<input, output, CaseInputs>(
       unmatched as MatchState<output>,
-      this.clauses as Array<ReusableClause<input> | ReusableWhenClause<input>>
+      this.clauses as Array<ReusableClause<input> | ReusableWhenClause<input>>,
+      this.normalizeSchema
     )
     const run = matcher.defaultAsync(handler as any) as (input: input) => Promise<unknown>
     return run(this.input)
@@ -381,7 +400,7 @@ function atCaseSchema<input, key extends PropertyKey, value>(
   }
 }
 
-class ReusableMatcher<input, output, CaseInputs = never> {
+export class ReusableMatcher<input, output, CaseInputs = never> {
   private dispatch: DispatchTable | null | undefined = undefined // undefined = not yet computed
 
   /**
@@ -394,7 +413,8 @@ class ReusableMatcher<input, output, CaseInputs = never> {
 
   constructor(
     private readonly terminal: MatchState<output>,
-    private readonly clauses: Array<ReusableClause<input> | ReusableWhenClause<input>> = []
+    private readonly clauses: Array<ReusableClause<input> | ReusableWhenClause<input>> = [],
+    private readonly normalizeSchema: SchemaNormalizer = toStandardSchema
   ) {
     // Build the ~standard property in the constructor so it closes over `this`
     this['~standard'] = {
@@ -435,16 +455,16 @@ class ReusableMatcher<input, output, CaseInputs = never> {
     const hasGuard = length === 3 && typeof args[1] === 'function' && !looksLikeStandardSchema(args[1])
     const predicate = hasGuard ? (args[1] as (value: unknown, input: input) => unknown) : undefined
     const schemaEnd = hasGuard ? 1 : length - 1
-    const schemas = args.slice(0, schemaEnd) as StandardSchemaV1[]
+    const schemas = args.slice(0, schemaEnd).map(this.normalizeSchema) as StandardSchemaV1[]
 
-    return new ReusableMatcher(this.terminal, [...this.clauses, {schemas, predicate, handler}])
+    return new ReusableMatcher(this.terminal, [...this.clauses, {schemas, predicate, handler}], this.normalizeSchema)
   }
 
   when<result>(
     predicate: (value: input) => unknown,
     handler: (value: input, input: input) => result
   ): ReusableMatcher<input, WithReturn<output, result>, CaseInputs> {
-    return new ReusableMatcher(this.terminal, [...this.clauses, {when: predicate, handler}]) as any
+    return new ReusableMatcher(this.terminal, [...this.clauses, {when: predicate, handler}], this.normalizeSchema) as any
   }
 
   output<O>(): ReusableMatcher<input, O, CaseInputs> {
@@ -488,6 +508,14 @@ class ReusableMatcher<input, output, CaseInputs = never> {
       }
       return handler(context)
     }
+  }
+
+  orThrow(): (input: input) => WithReturn<output, never> {
+    return this.default(throwMatch as any) as (input: input) => WithReturn<output, never>
+  }
+
+  exhaustive(): (input: CaseInputs) => output {
+    return this.default<never>(throwMatch as any) as (input: CaseInputs) => output
   }
 
   /**
@@ -693,7 +721,7 @@ class ReusableMatcher<input, output, CaseInputs = never> {
   }
 }
 
-class ReusableMatcherAt<input, output, CaseInputs = never, key extends PropertyKey = PropertyKey> {
+export class ReusableMatcherAt<input, output, CaseInputs = never, key extends PropertyKey = PropertyKey> {
   readonly '~standard': StandardSchemaV1.Props<CaseInputs, ResolveOutput<output>>
 
   constructor(
@@ -735,6 +763,14 @@ class ReusableMatcherAt<input, output, CaseInputs = never, key extends PropertyK
     ([unmatched] extends [never] ? output : WithReturn<output, DefaultReturn<unmatched, handler>>)
   default(handler: ((context: DefaultContext<input>) => unknown)): (input: any) => unknown {
     return this.matcher.default(handler as any) as any
+  }
+
+  orThrow(): (input: input) => WithReturn<output, never> {
+    return this.matcher.orThrow() as any
+  }
+
+  exhaustive(): (input: CaseInputs) => output {
+    return this.matcher.exhaustive() as any
   }
 
   defaultAsync<

@@ -23,6 +23,9 @@ importers:
       ts-pattern:
         specifier: 5.9.0
         version: 5.9.0
+      typebox:
+        specifier: 1.1.38
+        version: 1.1.38
       typescript:
         specifier: 5.7.3
         version: 5.7.3
@@ -671,6 +674,9 @@ packages:
 
   ts-pattern@5.9.0:
     resolution: {integrity: sha512-6s5V71mX8qBUmlgbrfL33xDUwO0fq48rxAu2LBE11WBeGdpCPOsXksQbZJHvHwhrd3QjUusd3mAOM5Gg0mFBLg==}
+
+  typebox@1.1.38:
+    resolution: {integrity: sha512-pZ0aQPmMmXoUvSbeuWf/Hzsc+avNw/Zd6VeE8CFgkVGWyuHPJvqeJJDeJqLve+K70LvjYIoleGcoJHPT17cWoA==}
 
   typescript@5.6.1-rc:
     resolution: {integrity: sha512-E3b2+1zEFu84jB0YQi9BORDjz9+jGbwwy1Zi3G0LUNw7a7cePUrHMRNy8aPh53nXpkFGVHSxIZo5vKTfYaFiBQ==}
@@ -1335,6 +1341,8 @@ snapshots:
   tinyrainbow@3.0.3: {}
 
   ts-pattern@5.9.0: {}
+
+  typebox@1.1.38: {}
 
   typescript@5.6.1-rc: {}
 

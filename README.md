@@ -99,6 +99,20 @@ const output = match(input)
   .default(() => 'unexpected')
 ```
 
+## TypeBox Script strings
+
+`typebox` is an optional peer dependency. Import the TypeBox entrypoint to use string `.case(...)` clauses parsed with TypeBox's `Script` API and inferred from the TypeScript-looking string:
+
+```typescript
+import {match} from 'schematch/typebox'
+
+const output = match(input)
+  .case(`string`, s => s.substring(2, 4))
+  .case(`[number, number]`, ([x, y]) => `total: ${x + y}`)
+  .case(`{ foo: string; bar: number }`, obj => obj.foo + obj.bar.toFixed(2))
+  .default(() => 'unexpected')
+```
+
 ## `.default(...)` - terminating a match
 
 The `.default(...)` method terminates a match expression. It takes a fallback handler, called with a single context object when no case matched.
@@ -114,20 +128,20 @@ match(input)
   })
 ```
 
-### `.default(match.throw)`
+### `.orThrow()`
 
-`match.throw` is just a shorthand for `({error}) => {throw error}` - so using `.default(match.throw)` throws the error produced from failing to match any of the cases.
+Throws the `MatchError` produced from failing to match any of the cases. This is equivalent to `.default(match.throw)`.
 
 
-### `.default<never>(match.throw)`
+### `.exhaustive()`
 
-Throws the `MatchError` at runtime if no case matched (like `.default(match.throw)`), and **constrains the input type** at compile time to the union of all case schema input types. If you like types which I think you do, this is best when you know the input will always be one of the declared cases:
+Throws the `MatchError` at runtime if no case matched, and **constrains the input type** at compile time to the union of all case schema input types. This is equivalent to `.default<never>(match.throw)`.
 
 ```typescript
 const fn = match
   .case(z.string(), s => s.length)
   .case(z.number(), n => n + 1)
-  .default<never>(match.throw) // equivalent to `.default(({error}) => {throw error;})`
+  .exhaustive()
 
 // fn has type: (input: string | number) => number
 fn('hello') // 5
@@ -140,11 +154,11 @@ For inline matchers, `<never>` produces a compile-time error if the input value 
 ```typescript
 match(42 as number)
   .case(z.number(), n => n + 1)
-  .default<never>(match.throw) // ok: number extends number
+  .exhaustive() // ok: number extends number
 
 match('hello' as unknown)
   .case(z.number(), n => n + 1)
-  .default<never>(match.throw) // type error: unknown doesn't extend number
+  .exhaustive() // type error: unknown doesn't extend number
 ```
 
 ### `.default(({error}) => error)`
@@ -191,7 +205,7 @@ Stringify['~standard'].validate(null)     // { issues: [...] }
 const outer = match
   .case(Stringify, arr => arr.length)     // Stringify is the schema here
   .case(z.boolean(), () => -1)
-  .default(match.throw)
+  .orThrow()
 
 outer('a,b,c')  // 3
 outer(5)         // 5
@@ -202,7 +216,7 @@ Type inference works through composition: `StandardSchemaV1.InferInput` gives th
 
 For async schemas/guards/handlers, use `.defaultAsync(...)` to execute the same matcher asynchronously.
 
-**Note:** Calling `.default(match.throw)` terminates the matcher and returns a plain function. The returned function is not a StandardSchema. The schema interface lives on the matcher *before* `.default(match.throw)` is called.
+**Note:** Calling `.orThrow()` terminates the matcher and returns a plain function. The returned function is not a StandardSchema. The schema interface lives on the matcher *before* `.orThrow()` is called.
 
 ## Why use this
 
@@ -417,7 +431,7 @@ When multiple keys are literal-typed, preferred discriminator names (`type`, `ki
 
 ### Enhanced error messages
 
-When `.default(match.throw)` throws because no branch matched, the error message includes:
+When `.orThrow()` throws because no branch matched, the error message includes:
 
 - **Discriminator info** (reusable matchers): If a dispatch table exists, the error reports the discriminator key, the actual value, and the expected values. For example: `Discriminator 'type' has value "unknown" but expected one of: "ok", "err"`.
 - **Per-schema validation issues**: The error re-validates the input against each candidate schema (or all schemas if no dispatch table exists) and formats the issues. For example: `Case 1: ✖ Expected number → at value`.
@@ -447,7 +461,7 @@ A few smaller techniques contribute to throughput:
 | Partial precheck | Any compiled schema | Full validation on mismatches | Precheck call + full validation on match |
 | Reusable matcher | Hot paths with repeated matching | Fluent chain rebuild | Fixed clause array |
 | Discriminator dispatch | Reusable matchers with shared literal key | Non-matching branches | One property read + Map lookup |
-| Enhanced error messages | `.default(match.throw)` failures | - | Re-validation on error path only |
+| Enhanced error messages | `.orThrow()` failures | - | Re-validation on error path only |
 
 ## Supported ecosystems
 
@@ -470,12 +484,12 @@ Sync matcher builder:
 - `.when(predicate, handler)` - no schema, just a predicate
 - `.default(handler)` — fallback handler for unmatched inputs (`({input, error})`)
 - `.defaultAsync(handler)` — async fallback handler (`({input, error})`)
-- `.default(match.throw)` — throw `MatchError` if nothing matched
+- `.orThrow()` — throw `MatchError` if nothing matched
 - `.defaultAsync(match.throw)` — async terminal that throws `MatchError` if nothing matched
-- `.default<never>(match.throw)` — throw if nothing matched; type error if input doesn't extend case union
+- `.exhaustive()` — throw if nothing matched; type error if input doesn't extend case union
 - `.default(({error}) => error)` — return `MatchError` instead of throwing
 
-Nothing is evaluated until you call a terminal (`.default(...)` or `.defaultAsync(...)`).
+Nothing is evaluated until you call a terminal (`.default(...)`, `.orThrow()`, `.exhaustive()`, or `.defaultAsync(...)`).
 
 `handler` receives `(parsedValue, input)`. For transforming schemas, `parsedValue` is transformed output; for non-transforming schemas, fast paths may pass through the input value.
 
@@ -511,7 +525,7 @@ const getSessionId = match
   .at('type')
   .case('session.status', value => value.sessionId)
   .case('message.updated', value => value.properties.sessionId)
-  .default(match.throw)
+  .exhaustive()
 ```
 
 `at().case()` checks `input[key] === value` and narrows the handler type. It does not run full branch schema validation.
@@ -538,7 +552,7 @@ const routeLead = match
   .input<Lead>()
   .case(z.object({email: z.string().email()}), (_parsed, input) => `email:${input.campaignId}`)
   .case(z.object({phone: z.string()}), (_parsed, input) => `sms:${input.country}`)
-  .default(match.throw)
+  .orThrow()
 ```
 
 ### `.defaultAsync(...)`
@@ -566,7 +580,7 @@ const result = await fn(input)
 
 ### `MatchError`
 
-Thrown by `.default(match.throw)` / `.default<never>(match.throw)`, or returned by `.default(({error}) => error)`.
+Thrown by `.orThrow()` / `.exhaustive()`, or returned by `.default(({error}) => error)`.
 
 Implements `StandardSchemaV1.FailureResult`. The `.issues` array contains per-case validation details conforming to the standard-schema spec. Also exposes `.input`, `.schemas`, and `.discriminator` for programmatic access.
 
@@ -575,7 +589,7 @@ Implements `StandardSchemaV1.FailureResult`. The `.issues` array contains per-ca
 - First handler arg (`parsed`) is inferred from schema output type.
 - Second handler arg (`input`) is for input-oriented logic and narrows in common non-transforming union cases.
 - Return types are unioned across branches.
-- `.default<never>(match.throw)` constrains the reusable matcher's input to the union of case schema input types.
+- `.exhaustive()` constrains the reusable matcher's input to the union of case schema input types.
 - `StandardSchemaV1.InferInput<typeof matcher>` gives the case input union; `StandardSchemaV1.InferOutput<typeof matcher>` gives the handler return union.
 
 ## Other fun stuff
@@ -599,8 +613,8 @@ Use `schematch` when schema-driven validation is central and you want matching t
 ## Caveats
 
 - Use `.defaultAsync(...)` for async schema validation, guards, or handlers.
-- `.default(match.throw)` and `.default<never>(match.throw)` provide runtime exhaustiveness, not compile-time algebraic exhaustiveness. TypeScript cannot verify that your case schemas cover every member of a union at the type level.
-- `.when()` clauses don't contribute to `CaseInputs` for `.default<never>(match.throw)`. Use `.input<T>()` for full control when mixing `.when()` with input constraints.
+- `.orThrow()` and `.exhaustive()` provide runtime exhaustiveness, not compile-time algebraic exhaustiveness. TypeScript cannot verify that your case schemas cover every member of a union at the type level.
+- `.when()` clauses don't contribute to `CaseInputs` for `.exhaustive()`. Use `.input<T>()` for full control when mixing `.when()` with input constraints.
 
 ## Exports
 
