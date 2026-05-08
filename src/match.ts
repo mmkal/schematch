@@ -243,6 +243,14 @@ class MatchExpression<input, output, CaseInputs = never> {
     return run(this.input)
   }
 
+  orThrow(): WithReturn<output, never> {
+    return this.default(match.throw as any) as WithReturn<output, never>
+  }
+
+  exhaustive(): input extends CaseInputs ? output : never {
+    return this.default<never>(match.throw as any) as input extends CaseInputs ? output : never
+  }
+
   /**
    * Async terminal for match expressions.
    *
@@ -529,6 +537,14 @@ class ReusableMatcher<input, output, CaseInputs = never> {
     }
   }
 
+  orThrow(): (input: input) => WithReturn<output, never> {
+    return this.default(match.throw as any) as (input: input) => WithReturn<output, never>
+  }
+
+  exhaustive(): (input: CaseInputs) => output {
+    return this.default<never>(match.throw as any) as (input: CaseInputs) => output
+  }
+
   /**
    * Async terminal for reusable matchers.
    *
@@ -774,6 +790,14 @@ class ReusableMatcherAt<input, output, CaseInputs = never, key extends PropertyK
     ([unmatched] extends [never] ? output : WithReturn<output, DefaultReturn<unmatched, handler>>)
   default(handler: ((context: DefaultContext<input>) => unknown)): (input: any) => unknown {
     return this.matcher.default(handler as any) as any
+  }
+
+  orThrow(): (input: input) => WithReturn<output, never> {
+    return this.matcher.orThrow() as any
+  }
+
+  exhaustive(): (input: CaseInputs) => output {
+    return this.matcher.exhaustive() as any
   }
 
   defaultAsync<

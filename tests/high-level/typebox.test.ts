@@ -9,18 +9,18 @@ it('uses TypeBox Script strings as reusable matcher input types', () => {
   const matcher = match
     .case(`string`, value => value.substring(2, 4))
     .case(`[number, number]`, ([x, y]) => `total: ${x + y}`)
-    .default<never>(match.throw)
+    .exhaustive()
 
-    expect(matcher('hello')).toBe('ll')
-    expect(matcher([1, 2])).toBe('total: 3')
+  expect(matcher('hello')).toBe('ll')
+  expect(matcher([1, 2])).toBe('total: 3')
 
-    expectTypeOf(matcher).toEqualTypeOf<(input: string | [number, number]) => string>()    
+  expectTypeOf(matcher).toEqualTypeOf<(input: string | [number, number]) => string>()
 })
 
 it('reports TypeBox validation errors on match failures', () => {
   const matcher = match
     .case(`{ foo: string; bar: number }`, () => 'matched')
-    .default(match.throw)
+    .orThrow()
 
   expect(() => matcher({foo: 'score: ', bar: 'nope'})).toThrow(/must be number/)
 })
