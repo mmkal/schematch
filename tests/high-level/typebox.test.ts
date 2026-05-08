@@ -6,6 +6,8 @@ import {match} from '../../src/index.js'
 match.typebox(Typebox)
 
 it('uses TypeBox Script strings as reusable matcher input types', () => {
+  match.typebox(Typebox)
+  
   const matcher = match
     .case(`string`, value => value.substring(2, 4))
     .case(`[number, number]`, ([x, y]) => `total: ${x + y}`)
